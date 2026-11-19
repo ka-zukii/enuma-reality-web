@@ -1,12 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-export type Gender = "male" | "female";
-
-export interface GuestProfile {
-  /** Nama panggilan. Kosong = anonim */
-  name?: string;
-  gender?: Gender | null;
-}
+export type Character = "karakter_1" | "karakter_2";
 
 const MAX_NAME_LENGTH = 20;
 
@@ -16,15 +10,19 @@ function randomGuestName() {
 
 /**
  * Masuk sebagai tamu lewat login anonim Supabase.
+ * Nama dan karakter disimpan di user_metadata, lalu dibaca backend.
  * Catatan: fitur "Anonymous sign-ins" harus diaktifkan di project Supabase.
  */
-export async function signInAsGuest(profile: GuestProfile = {}) {
-  const cleanName = (profile.name ?? "").trim().slice(0, MAX_NAME_LENGTH);
+export async function startAsGuest(
+  nickname = "",
+  character: Character = "karakter_1",
+) {
+  const cleanName = nickname.trim().slice(0, MAX_NAME_LENGTH);
   const fullName = cleanName || randomGuestName();
 
   const { error } = await supabase.auth.signInAnonymously({
     options: {
-      data: { full_name: fullName, gender: profile.gender ?? null },
+      data: { full_name: fullName, character },
     },
   });
 

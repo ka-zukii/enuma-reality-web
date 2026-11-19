@@ -26,8 +26,7 @@ import {
   type BuildingInfo,
   type Vec3,
 } from "@/config/buildings";
-import { AnimatePresence } from "framer-motion";
-import { LoadingScreen } from "@/components/entry/LoadingScreen";
+import LoadingScreen from "@/components/entry/LoadingScreen";
 
 // Interior hanya dimuat saat pemain benar-benar masuk gedung
 const InteriorPage = lazy(() => import("@/pages/InteriorPage"));
@@ -305,6 +304,7 @@ function AppContent() {
         <LandingOverlay
           activeMenu={landingMenu}
           onMenuSelect={setLandingMenu}
+          onMenuClose={() => setLandingMenu(null)}
           activeView={landingView}
           onViewSelect={setLandingView}
           onExplore={() => setShowGuestModal(true)}
@@ -451,15 +451,12 @@ function AppContent() {
 }
 
 export default function App() {
-  const [splashDone, setSplashDone] = useState(false);
-  const finishSplash = useCallback(() => setSplashDone(true), []);
+  const [loaded, setLoaded] = useState(false);
 
   return (
     <>
       <AppContent />
-      <AnimatePresence>
-        {!splashDone && <LoadingScreen onFinish={finishSplash} />}
-      </AnimatePresence>
+      {!loaded && <LoadingScreen onDone={() => setLoaded(true)} />}
     </>
   );
 }

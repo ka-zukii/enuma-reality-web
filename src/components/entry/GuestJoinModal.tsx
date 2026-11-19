@@ -1,29 +1,36 @@
 import { useState } from "react";
-import { AlertCircle, ArrowUpRight, Compass, Loader2, X } from "lucide-react";
-import { signInAsGuest, type Gender } from "@/lib/guest";
+import { AlertCircle, Compass, Loader2, X } from "lucide-react";
+import { startAsGuest, type Character } from "@/lib/guest";
 
 interface GuestJoinModalProps {
   onClose: () => void;
+  /** Dipanggil saat tombol Login ditekan. Alur login belum ditentukan. */
+  onLogin?: () => void;
 }
 
-const COMPANY_URL = import.meta.env.VITE_COMPANY_URL as string | undefined;
+const MAX_NAME_LENGTH = 20;
 
-const GENDER_OPTIONS: { value: Gender; label: string }[] = [
-  { value: "male", label: "Laki-laki" },
-  { value: "female", label: "Perempuan" },
+/** Gender ditampilkan ke pengguna, lalu dipetakan ke karakter yang dibaca backend */
+const GENDER_OPTIONS: { label: string; character: Character }[] = [
+  { label: "Laki-laki", character: "karakter_1" },
+  { label: "Perempuan", character: "karakter_2" },
 ];
 
-export function GuestJoinModal({ onClose }: GuestJoinModalProps) {
+export function GuestJoinModal({ onClose, onLogin }: GuestJoinModalProps) {
   const [name, setName] = useState("");
-  const [gender, setGender] = useState<Gender | null>(null);
+  const [character, setCharacter] = useState<Character>("karakter_1");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const join = async (anonymous: boolean) => {
+  const cleanName = name.trim();
+  const canJoin = cleanName.length > 0 && !loading;
+
+  const join = async () => {
+    if (!cleanName) return;
     setError(null);
     setLoading(true);
     try {
-      await signInAsGuest(anonymous ? {} : { name, gender });
+      await startAsGuest(cleanName, character);
       // Setelah session terbentuk, App otomatis masuk ke mode jelajah
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal masuk. Coba lagi.");
@@ -37,58 +44,60 @@ export function GuestJoinModal({ onClose }: GuestJoinModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="guest-join-title"
-        className="relative w-full max-w-[560px] rounded-[28px] bg-white p-6 sm:p-8 shadow-2xl text-slate-900"
+        className="relative w-full max-w-[420px] rounded-[22px] bg-white p-5 sm:p-6 shadow-2xl text-slate-900"
       >
-        <div className="flex items-start justify-between">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-blue-600">
-            <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+        <div className="flex items-center justify-between">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-600">
+            <span className="h-1 w-1 rounded-full bg-blue-600" />
             Jelajahi Enuma
           </span>
           <button
             onClick={onClose}
             aria-label="Tutup"
-            className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100 transition cursor-pointer"
+            className="rounded-full p-1 text-slate-500 hover:bg-slate-100 transition cursor-pointer"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <h2 id="guest-join-title" className="mt-5 text-3xl font-extrabold">
+        <h2 id="guest-join-title" className="mt-4 text-2xl font-extrabold">
           Siapa nama Anda?
         </h2>
-        <p className="mt-2 text-sm leading-relaxed text-slate-500">
+        <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
           Nama ini tampil di atas karakter dan dapat dilihat pengunjung lain.
-          Boleh dikosongkan.
         </p>
 
-        <div className="mt-6 flex items-center justify-between">
-          <label htmlFor="guest-name" className="text-sm font-bold">
+        <div className="mt-5 flex items-center justify-between">
+          <label htmlFor="guest-name" className="text-xs font-bold">
             Nama panggilan
           </label>
-          <span className="text-xs text-slate-400">Opsional</span>
+          <span className="text-[15px] text-rose-500">*</span>
         </div>
         <input
           id="guest-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          maxLength={20}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && canJoin) void join();
+          }}
+          maxLength={MAX_NAME_LENGTH}
           placeholder="Contoh: Bintang"
           disabled={loading}
-          className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3.5 text-base outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+          className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
         />
 
-        <p className="mt-5 text-sm font-bold">Gender</p>
-        <div className="mt-2 grid grid-cols-2 gap-3">
+        <p className="mt-4 text-xs font-bold">Gender</p>
+        <div className="mt-1.5 grid grid-cols-2 gap-2">
           {GENDER_OPTIONS.map((opt) => {
-            const active = gender === opt.value;
+            const active = character === opt.character;
             return (
               <button
-                key={opt.value}
+                key={opt.label}
                 type="button"
                 disabled={loading}
-                onClick={() => setGender(active ? null : opt.value)}
+                onClick={() => setCharacter(opt.character)}
                 aria-pressed={active}
-                className={`rounded-xl border px-4 py-3.5 text-sm font-semibold transition cursor-pointer ${
+                className={`rounded-lg border px-3 py-2.5 text-xs font-semibold transition cursor-pointer ${
                   active
                     ? "border-blue-600 bg-blue-50 text-blue-700"
                     : "border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -100,36 +109,17 @@ export function GuestJoinModal({ onClose }: GuestJoinModalProps) {
           })}
         </div>
 
-        {COMPANY_URL && (
-          <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3.5">
-            <div className="min-w-0">
-              <p className="text-sm font-bold">Kenali Enuma lebih dekat</p>
-              <p className="text-xs text-slate-500">
-                Riset, produk digital, dan mentoring.
-              </p>
-            </div>
-            <a
-              href={COMPANY_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-4 py-2 text-xs font-bold text-blue-600 shadow-sm hover:bg-blue-50 transition"
-            >
-              Kunjungi <ArrowUpRight className="h-3 w-3" />
-            </a>
-          </div>
-        )}
-
         {error && (
-          <div className="mt-4 flex items-start gap-2 rounded-xl bg-rose-50 px-3.5 py-3 text-xs text-rose-600">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="mt-3 flex items-start gap-2 rounded-lg bg-rose-50 px-3 py-2.5 text-[11px] text-rose-600">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         <button
-          onClick={() => join(false)}
-          disabled={loading}
-          className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 text-base font-bold text-white hover:bg-blue-700 disabled:opacity-60 transition cursor-pointer"
+          onClick={() => void join()}
+          disabled={!canJoin}
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 transition cursor-pointer"
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -139,11 +129,11 @@ export function GuestJoinModal({ onClose }: GuestJoinModalProps) {
           Mulai menjelajah
         </button>
         <button
-          onClick={() => join(true)}
+          onClick={() => onLogin?.()}
           disabled={loading}
-          className="mt-3 w-full py-2 text-sm font-semibold text-slate-500 hover:text-slate-800 disabled:opacity-60 transition cursor-pointer"
+          className="mt-2 w-full py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 disabled:opacity-60 transition cursor-pointer"
         >
-          Anonim
+          Login
         </button>
       </div>
     </div>

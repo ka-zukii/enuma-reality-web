@@ -1,81 +1,80 @@
-import { useEffect } from "react";
-import { animate, motion, useMotionValue, useTransform } from "framer-motion";
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useProgress } from "@react-three/drei";
 
-interface LoadingScreenProps {
-  /** Dipanggil saat bar penuh; setelah itu layar memudar keluar */
-  onFinish: () => void;
-}
+// Durasi minimum layar loading tampil, supaya tidak berkedip
+// ketika aset sudah termuat sangat cepat.
+const MIN_DISPLAY_MS = 1200;
 
-/** Lama bar berjalan dari 0 ke 100 (detik) */
-const DURATION = 2.4;
+type Props = {
+  onDone?: () => void;
+};
 
-export function LoadingScreen({ onFinish }: LoadingScreenProps) {
-  const progress = useMotionValue(0);
-  const barWidth = useTransform(progress, (v) => `${v}%`);
+export default function LoadingScreen({ onDone }: Props) {
+  const { progress, total } = useProgress();
+
+  // Progres semu hanya dipakai saat belum ada aset yang terdaftar (total === 0).
+  const [fallback, setFallback] = useState(0);
+  const [minElapsed, setMinElapsed] = useState(false);
+  const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    let timer: number | undefined;
-    const controls = animate(progress, 100, {
-      duration: DURATION,
-      ease: [0.22, 1, 0.36, 1],
-      onComplete: () => {
-        timer = window.setTimeout(onFinish, 250);
-      },
-    });
-    return () => {
-      controls.stop();
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [progress, onFinish]);
+    const start = Date.now();
+    const id = window.setInterval(() => {
+      const p = Math.min(1, (Date.now() - start) / MIN_DISPLAY_MS);
+      setFallback(Math.round(p * 100));
+      if (p >= 1) {
+        window.clearInterval(id);
+        setMinElapsed(true);
+      }
+    }, 50);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const percent = total === 0 ? fallback : Math.min(100, Math.round(progress));
+  const ready = minElapsed && (total === 0 || progress >= 100);
+
+  useEffect(() => {
+    if (ready) setVisible(false);
+  }, [ready]);
 
   return (
-    <motion.div
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center font-sans"
-      style={{
-        background:
-          "radial-gradient(ellipse at 60% 58%, #ffffff 0%, #c4d4f8 38%, #2f66ea 100%)",
-      }}
-      initial={{ opacity: 1 }}
-      exit={{ opacity: 0, scale: 1.03 }}
-      transition={{ duration: 0.5, ease: "easeInOut" }}
-    >
-      {/* Logo: muncul membesar, lalu bergerak naik-turun pelan */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.7 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ type: "spring", stiffness: 160, damping: 14 }}
-      >
-        <motion.img
-          src="/logo-enuma.png"
-          alt="Enuma Technology"
-          className="h-24 w-24 drop-shadow-xl sm:h-28 sm:w-28"
-          animate={{ y: [0, -6, 0] }}
-          transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-        />
-      </motion.div>
-
-      <motion.h1
-        className="mt-6 text-3xl font-bold text-black sm:text-4xl"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.25, duration: 0.5 }}
-      >
-        Enuma <span className="text-blue-600">Technology</span>
-      </motion.h1>
-
-      <motion.div
-        className="mt-8 h-[30px] w-[min(700px,80vw)] overflow-hidden rounded-full bg-white"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.45, duration: 0.4 }}
-        role="progressbar"
-        aria-label="Memuat"
-      >
+    <AnimatePresence onExitComplete={onDone}>
+      {visible && (
         <motion.div
-          className="h-full rounded-full bg-blue-600"
-          style={{ width: barWidth }}
-        />
-      </motion.div>
-    </motion.div>
+          key="loading"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+          style={{
+            background:
+              "radial-gradient(ellipse at center, #ffffff 0%, #c7d7fb 45%, #2563eb 100%)",
+          }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.6, ease: "easeInOut" }}
+        >
+          <img
+            src="/logo-enuma.png"
+            alt="Enuma"
+            className="h-12 w-12 object-contain sm:h-14 sm:w-14"
+          />
+
+          <p className="mt-4 text-base font-semibold tracking-tight text-slate-900">
+            Enuma <span className="text-blue-600">Technology</span>
+          </p>
+
+          <div className="mt-6 w-full max-w-[220px] px-6">
+            <div className="h-1 w-full overflow-hidden rounded-full bg-white/60">
+              <motion.div
+                className="h-full rounded-full bg-blue-600"
+                animate={{ width: `${percent}%` }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              />
+            </div>
+            <div className="mt-2 text-right text-xs font-medium tabular-nums text-blue-700">
+              {percent}%
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

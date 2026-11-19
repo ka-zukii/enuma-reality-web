@@ -46,6 +46,8 @@ interface OfficeSceneProps {
   /** Dipanggil dengan throttle (sekitar 6x per detik) saat posisi lokal berubah */
   onLocalPositionChange?: (pos: Vec3) => void;
   cameraMode: "iso" | "follow";
+  /** Mode pengamat (sebelum masuk): tanpa avatar lokal dan tanpa kontrol gerak */
+  spectator?: boolean;
   /** Jika diisi, scene menjadi interior gedung, bukan kota */
   interior?: {
     config: InteriorConfig;
@@ -107,6 +109,7 @@ export function OfficeScene({
   onBuildingSelect,
   onLocalPositionChange,
   cameraMode,
+  spectator = false,
   interior,
 }: OfficeSceneProps) {
   const isInterior = interior !== undefined;
@@ -338,19 +341,21 @@ export function OfficeScene({
 
       {environment}
 
-      <Avatar3D
-        userId={currentUser.id}
-        fullName={currentUser.fullName}
-        color={currentUser.color}
-        initialPosition={spawn}
-        isLocal={true}
-        localStateRef={localStateRef}
-        bubbleMessage={bubbles[currentUser.id]}
-        isFirstPerson={isFirstPerson}
-        role={currentUser.role}
-        jobTitle={currentUser.jobTitle}
-        status={currentUser.status}
-      />
+      {!spectator && (
+        <Avatar3D
+          userId={currentUser.id}
+          fullName={currentUser.fullName}
+          color={currentUser.color}
+          initialPosition={spawn}
+          isLocal={true}
+          localStateRef={localStateRef}
+          bubbleMessage={bubbles[currentUser.id]}
+          isFirstPerson={isFirstPerson}
+          role={currentUser.role}
+          jobTitle={currentUser.jobTitle}
+          status={currentUser.status}
+        />
+      )}
 
       {remotePlayers.map((player) => (
         <Avatar3D

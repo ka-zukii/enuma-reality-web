@@ -11,7 +11,11 @@ import { Canvas } from "@react-three/fiber";
 import { AlertCircle, Building2, DoorOpen, LogOut, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useOfficeSocket } from "@/hooks/useOfficeSocket";
-import { AuthScreen } from "@/components/auth/AuthScreen";
+import { GuestJoinModal } from "@/components/entry/GuestJoinModal";
+import {
+  LandingOverlay,
+  type LandingMenuKey,
+} from "@/components/entry/LandingOverlay";
 import { OfficeScene } from "@/components/OfficeScene";
 import { VOfficeOverlay } from "@/components/hud/VOfficeOverlay";
 import { JoinWorkspaceModal } from "@/components/hud/JoinWorkspaceModal";
@@ -22,6 +26,7 @@ import {
   type BuildingInfo,
   type Vec3,
 } from "@/config/buildings";
+import LoadingScreen from "@/components/entry/LoadingScreen";
 
 // Interior hanya dimuat saat pemain benar-benar masuk gedung
 const InteriorPage = lazy(() => import("@/pages/InteriorPage"));
@@ -103,7 +108,7 @@ function BuildingPrompt({
   );
 }
 
-export default function App() {
+function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const { session, loading } = useAuth();
@@ -127,6 +132,10 @@ export default function App() {
     setStatus,
   } = useOfficeSocket(userId);
 
+    // Tampilan sebelum masuk (overview kota + modal nama)
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [landingMenu, setLandingMenu] = useState<LandingMenuKey | null>(null);
+  const [landingView, setLandingView] = useState("Beranda");
   const [currentZone, setCurrentZone] = useState("jalan-utama");
   const [isChatFocused, setIsChatFocused] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -271,7 +280,41 @@ export default function App() {
   }
 
   if (!session) {
-    return <AuthScreen />;
+    // Belum masuk: tampilkan overview kota sebagai latar, lalu minta nama tamu
+    return (
+      <div className="relative w-screen h-screen overflow-hidden bg-slate-100 select-none font-sans">
+        <SceneCanvas camera={EXTERIOR_CAMERA}>
+          <OfficeScene
+            socket={null}
+            currentUser={{
+              id: "preview",
+              fullName: "",
+              color: "#3b82f6",
+            }}
+            remotePlayers={[]}
+            remoteTicksRef={remoteTicksRef}
+            bubbles={{}}
+            onZoneChange={setCurrentZone}
+            isChatFocused={true}
+            cameraMode="iso"
+            spectator
+          />
+        </SceneCanvas>
+        <div className="pointer-events-none absolute inset-0 bg-slate-900/25" />
+        <LandingOverlay
+          activeMenu={landingMenu}
+          onMenuSelect={setLandingMenu}
+          onMenuClose={() => setLandingMenu(null)}
+          activeView={landingView}
+          onViewSelect={setLandingView}
+          onExplore={() => setShowGuestModal(true)}
+        />
+
+        {showGuestModal && (
+          <GuestJoinModal onClose={() => setShowGuestModal(false)} />
+        )}
+      </div>
+    );
   }
 
   const userName =
@@ -404,5 +447,16 @@ export default function App() {
         onSwitchWorkspace={switchWorkspace}
       />
     </div>
+  );
+}
+
+export default function App() {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <>
+      <AppContent />
+      {!loaded && <LoadingScreen onDone={() => setLoaded(true)} />}
+    </>
   );
 }

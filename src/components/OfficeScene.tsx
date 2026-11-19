@@ -12,13 +12,10 @@ import * as THREE from "three";
 import { Avatar3D } from "@/components/Avatar3D";
 import { CityEnvironment } from "@/components/CityEnvironment";
 import { InteriorEnvironment } from "@/components/interiors/InteriorEnvironment";
-import {
-  type MemberRole,
-  type PlayerStatus,
-  type RemotePlayer,
-} from "@/types";
+import { type MemberRole, type PlayerStatus, type RemotePlayer } from "@/types";
 import { type PlayerTickData } from "@/hooks/useOfficeSocket";
 import {
+  BUILDINGS,
   CITY_OBSTACLES,
   PLAYER_RADIUS,
   type Box,
@@ -87,9 +84,17 @@ function isBlocked(x: number, z: number, boxes: Box[]): boolean {
 }
 
 function detectCityZone(x: number, z: number): string {
-  if (x >= -7 && x <= 5 && z >= -9 && z <= 1) return "enuma-reality-hq";
-  if (x <= -10 && z <= 1 && z >= -9) return "board-game-cafe";
-  if (x >= 15 && z <= 1 && z >= -9) return "m-cafe";
+  for (const b of BUILDINGS) {
+    const f = b.footprint;
+    if (
+      x >= f.x - f.w / 2 - 1 &&
+      x <= f.x + f.w / 2 + 1 &&
+      z >= f.z - f.d / 2 - 1 &&
+      z <= f.z + f.d / 2 + 1
+    ) {
+      return b.key === "enuma-hq" ? "enuma-reality-hq" : b.key;
+    }
+  }
   if (x >= 4 && x <= 10 && z >= -18 && z <= 8) return "taman-kota";
   if (z >= 11 && z <= 17) return "jalan-selatan";
   if (z <= -19) return "jalan-utara";

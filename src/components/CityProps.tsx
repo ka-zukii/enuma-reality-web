@@ -1,14 +1,19 @@
 import { Html } from "@react-three/drei";
 import { Coffee, Gamepad2, Building2, Store } from "lucide-react";
 
+type BuildingVariant = "office" | "shop" | "cafe";
+
 interface BuildingProps {
   position: [number, number, number];
   size?: [number, number, number];
   color?: string;
   roofColor?: string;
+  accentColor?: string;
   name: string;
+  signText?: string;
   subtitle?: string;
   tag?: string;
+  variant?: BuildingVariant;
   onClick?: () => void;
   badgeAction?: string;
   badgeIcon?: "game" | "cafe" | "office" | "shop";
@@ -20,106 +25,210 @@ export function ModernBuilding({
   size = [8, 9, 8],
   color = "#ffffff",
   roofColor = "#1e293b",
+  accentColor = "#0284c7",
   name,
+  signText,
   subtitle,
   tag,
+  variant = "office",
   onClick,
-  badgeAction = "Info & main ›",
+  badgeAction = "Masuk ›",
   badgeIcon = "office",
   badgePosition,
 }: BuildingProps) {
   const [w, h, d] = size;
+  const frontZ = d / 2;
+  const trim = "#334155";
+  const glass = "#7dd3fc";
+  const isOffice = variant === "office";
+  const isCafe = variant === "cafe";
+
+  // Lantai dasar: office lebih rendah, shop dan cafe punya storefront tinggi
+  const groundH = isOffice ? h * 0.22 : 3.2;
+  const baseY = 0.2;
+  const awningY = baseY + groundH + 0.15;
+  const signY = baseY + groundH + 0.85;
+  const tagY = baseY + groundH + 1.9;
+
+  // Jendela lantai atas (hanya office dan cafe)
+  const upperRows = isOffice ? [0.5, 0.8] : isCafe ? [0.75] : [];
+  const cols = Math.max(2, Math.round(w / 2.6));
+  const colX = Array.from(
+    { length: cols },
+    (_, i) => -w / 2 + ((i + 0.5) * w) / cols,
+  );
+
+  const parapets: {
+    p: [number, number, number];
+    s: [number, number, number];
+  }[] = [
+    { p: [0, 0, frontZ + 0.1], s: [w + 0.3, 0.5, 0.2] },
+    { p: [0, 0, -(frontZ + 0.1)], s: [w + 0.3, 0.5, 0.2] },
+    { p: [w / 2 + 0.1, 0, 0], s: [0.2, 0.5, d + 0.3] },
+    { p: [-(w / 2 + 0.1), 0, 0], s: [0.2, 0.5, d + 0.3] },
+  ];
 
   return (
     <group position={position}>
-      {/* Dasar pondasi beton / trotoar bawah */}
+      {/* Pondasi / trotoar */}
       <mesh position={[0, 0.1, 0]} receiveShadow>
         <boxGeometry args={[w + 0.8, 0.2, d + 0.8]} />
         <meshStandardMaterial color="#cbd5e1" roughness={0.7} />
       </mesh>
 
-      {/* Badan Bangunan Utama */}
-      <mesh position={[0, h / 2 + 0.2, 0]} castShadow receiveShadow>
+      {/* Badan bangunan */}
+      <mesh position={[0, h / 2 + baseY, 0]} castShadow receiveShadow>
         <boxGeometry args={[w, h, d]} />
-        <meshStandardMaterial color={color} roughness={0.4} />
+        <meshStandardMaterial color={color} roughness={0.45} />
       </mesh>
 
-      {/* Lis Pembatas Lantai 2 & Lantai 3 */}
-      <mesh position={[0, h * 0.35 + 0.2, 0]}>
-        <boxGeometry args={[w + 0.2, 0.25, d + 0.2]} />
-        <meshStandardMaterial color="#334155" />
-      </mesh>
-      <mesh position={[0, h * 0.68 + 0.2, 0]}>
-        <boxGeometry args={[w + 0.2, 0.25, d + 0.2]} />
-        <meshStandardMaterial color="#334155" />
-      </mesh>
-
-      {/* Atap & Lis Atap Modern */}
-      <mesh position={[0, h + 0.3, 0]}>
-        <boxGeometry args={[w + 0.4, 0.35, d + 0.4]} />
-        <meshStandardMaterial color={roofColor} roughness={0.5} />
-      </mesh>
-
-      {/* Kanopi Depan Lantai 1 (Tinggi 2.8m, pas di atas avatar 1.70m) */}
-      <mesh position={[0, 2.9, d / 2 + 0.6]} castShadow>
-        <boxGeometry args={[w * 0.85, 0.15, 1.2]} />
-        <meshStandardMaterial color="#0f172a" />
-      </mesh>
-
-      {/* Pintu Kaca & Showcase Lantai 1 (Tinggi 2.5m, lebar lapang) */}
-      <mesh position={[0, 1.35, d / 2 + 0.02]}>
-        <planeGeometry args={[w * 0.82, 2.5]} />
-        <meshStandardMaterial
-          color="#38bdf8"
-          roughness={0.1}
-          metalness={0.7}
-          transparent
-          opacity={0.65}
-        />
-      </mesh>
-
-      {/* Jendela Kaca Lantai 2 */}
-      <mesh position={[0, h * 0.52 + 0.2, d / 2 + 0.02]}>
-        <planeGeometry args={[w * 0.82, 2.2]} />
-        <meshStandardMaterial
-          color="#bae6fd"
-          roughness={0.2}
-          metalness={0.5}
-          transparent
-          opacity={0.6}
-        />
-      </mesh>
-
-      {/* Jendela Kaca Lantai 3 */}
-      <mesh position={[0, h * 0.83 + 0.2, d / 2 + 0.02]}>
-        <planeGeometry args={[w * 0.82, 2.0]} />
-        <meshStandardMaterial
-          color="#bae6fd"
-          roughness={0.2}
-          metalness={0.5}
-          transparent
-          opacity={0.6}
-        />
-      </mesh>
-
-      {/* Kusen Jendela Vertikal Lantai 2 & 3 */}
-      {[-w * 0.25, 0, w * 0.25].map((x) => (
-        <mesh key={x} position={[x, h * 0.65, d / 2 + 0.04]}>
-          <boxGeometry args={[0.08, h * 0.6, 0.03]} />
-          <meshStandardMaterial color="#1e293b" />
+      {/* Pilar sudut agar bangunan terlihat berdimensi */}
+      {[
+        [-1, -1],
+        [1, -1],
+        [-1, 1],
+        [1, 1],
+      ].map(([sx, sz]) => (
+        <mesh
+          key={`pillar-${sx}-${sz}`}
+          position={[sx * (w / 2), h / 2 + baseY, sz * (d / 2)]}
+          castShadow
+        >
+          <boxGeometry args={[0.35, h, 0.35]} />
+          <meshStandardMaterial color={trim} />
         </mesh>
       ))}
 
-      {/* Papan Plang / Spanduk Sewa */}
+      {/* Atap dan parapet */}
+      <mesh position={[0, h + baseY + 0.12, 0]} castShadow>
+        <boxGeometry args={[w + 0.3, 0.25, d + 0.3]} />
+        <meshStandardMaterial color={roofColor} roughness={0.5} />
+      </mesh>
+      {parapets.map((part, i) => (
+        <mesh
+          key={`parapet-${i}`}
+          position={[part.p[0], h + baseY + 0.37, part.p[2]]}
+          castShadow
+        >
+          <boxGeometry args={part.s} />
+          <meshStandardMaterial color={roofColor} />
+        </mesh>
+      ))}
+
+      {/* Storefront kaca lantai dasar dengan mullion */}
+      <mesh position={[0, baseY + groundH / 2, frontZ + 0.02]}>
+        <planeGeometry args={[w * 0.8, groundH - 0.5]} />
+        <meshStandardMaterial
+          color={glass}
+          roughness={0.1}
+          metalness={0.6}
+          transparent
+          opacity={0.7}
+        />
+      </mesh>
+      {[-w * 0.4, 0, w * 0.4].map((x) => (
+        <mesh
+          key={`mullion-${x}`}
+          position={[x, baseY + groundH / 2, frontZ + 0.05]}
+        >
+          <boxGeometry args={[0.1, groundH - 0.5, 0.06]} />
+          <meshStandardMaterial color={trim} />
+        </mesh>
+      ))}
+
+      {/* Kanopi bergaris (shop dan cafe) */}
+      {!isOffice && (
+        <group position={[0, awningY, frontZ + 0.55]}>
+          {Array.from({ length: 6 }, (_, i) => (
+            <mesh
+              key={`awning-${i}`}
+              position={[-w * 0.4 + ((i + 0.5) * w * 0.8) / 6, 0, 0]}
+              castShadow
+            >
+              <boxGeometry args={[(w * 0.8) / 6, 0.3, 1.1]} />
+              <meshStandardMaterial
+                color={i % 2 === 0 ? accentColor : "#ffffff"}
+              />
+            </mesh>
+          ))}
+        </group>
+      )}
+
+      {/* Papan nama di atas kanopi */}
+      {signText && !isOffice && (
+        <group position={[0, signY, frontZ + 0.08]}>
+          <mesh castShadow>
+            <boxGeometry args={[w * 0.8, 0.8, 0.15]} />
+            <meshStandardMaterial
+              color={accentColor}
+              emissive={accentColor}
+              emissiveIntensity={0.25}
+            />
+          </mesh>
+          <Html
+            position={[0, 0, 0.1]}
+            center
+            transform
+            distanceFactor={12}
+            zIndexRange={[5, 0]}
+          >
+            <div className="font-black text-[13px] tracking-widest text-white whitespace-nowrap drop-shadow">
+              {signText}
+            </div>
+          </Html>
+        </group>
+      )}
+
+      {/* Jendela lantai atas */}
+      {upperRows.map((ry) =>
+        colX.map((x) => (
+          <mesh
+            key={`win-${ry}-${x}`}
+            position={[x, h * ry + baseY, frontZ + 0.03]}
+          >
+            <planeGeometry args={[(w / cols) * 0.6, isOffice ? 1.6 : 1.4]} />
+            <meshStandardMaterial
+              color={glass}
+              roughness={0.2}
+              metalness={0.5}
+              transparent
+              opacity={0.6}
+            />
+          </mesh>
+        )),
+      )}
+
+      {/* Pot tanaman di depan cafe */}
+      {isCafe &&
+        [-w * 0.42, w * 0.42].map((x) => (
+          <group key={`planter-${x}`} position={[x, 0, frontZ + 0.9]}>
+            <mesh position={[0, 0.35, 0]} castShadow>
+              <boxGeometry args={[1.1, 0.7, 0.6]} />
+              <meshStandardMaterial color="#78350f" />
+            </mesh>
+            <mesh position={[0, 0.95, 0]} castShadow>
+              <sphereGeometry args={[0.5, 10, 10]} />
+              <meshStandardMaterial color="#16a34a" roughness={0.8} />
+            </mesh>
+          </group>
+        ))}
+
+      {/* Papan tag (DISEWAKAN / nama kategori) */}
       {tag && (
-        <group position={[0, 3.8, d / 2 + 0.06]}>
+        <group position={[0, tagY, frontZ + 0.06]}>
           <mesh>
             <planeGeometry args={[w * 0.65, 0.7]} />
             <meshStandardMaterial
               color={tag.includes("DISEWAKAN") ? "#dc2626" : "#0284c7"}
             />
           </mesh>
-          <Html position={[0, 0, 0.02]} center transform distanceFactor={18} zIndexRange={[5, 0]}>
+          <Html
+            position={[0, 0, 0.02]}
+            center
+            transform
+            distanceFactor={18}
+            zIndexRange={[5, 0]}
+          >
             <div className="font-extrabold text-[10px] uppercase tracking-wider text-white px-2 whitespace-nowrap drop-shadow">
               {tag}
             </div>
@@ -127,13 +236,37 @@ export function ModernBuilding({
         </group>
       )}
 
-      {/* Unit AC & Antena di Atap */}
-      <mesh position={[w * 0.25, h + 0.75, -d * 0.2]} castShadow>
-        <boxGeometry args={[1.2, 0.9, 0.8]} />
-        <meshStandardMaterial color="#94a3b8" />
-      </mesh>
+      {/* Detail atap: office (AC dan antena), cafe (payung) */}
+      {isOffice && (
+        <>
+          <mesh position={[w * 0.25, h + baseY + 0.75, -d * 0.2]} castShadow>
+            <boxGeometry args={[1.2, 0.9, 0.8]} />
+            <meshStandardMaterial color="#94a3b8" />
+          </mesh>
+          <mesh position={[-w * 0.2, h + baseY + 1.8, 0]}>
+            <cylinderGeometry args={[0.05, 0.05, 2.2, 8]} />
+            <meshStandardMaterial color="#e2e8f0" />
+          </mesh>
+        </>
+      )}
+      {isCafe && (
+        <group position={[w * 0.2, h + baseY + 0.3, -d * 0.15]}>
+          <mesh position={[0, 0.05, 0]}>
+            <cylinderGeometry args={[0.8, 0.8, 0.1, 16]} />
+            <meshStandardMaterial color="#ffffff" />
+          </mesh>
+          <mesh position={[0, 0.7, 0]}>
+            <cylinderGeometry args={[0.06, 0.06, 1.4, 8]} />
+            <meshStandardMaterial color="#ffffff" />
+          </mesh>
+          <mesh position={[0, 1.4, 0]} castShadow>
+            <coneGeometry args={[1.8, 0.9, 8]} />
+            <meshStandardMaterial color={accentColor} />
+          </mesh>
+        </group>
+      )}
 
-      {/* Floating Location Pill vOffice Style */}
+      {/* Label lokasi yang bisa diklik */}
       <Html
         position={badgePosition || [0, h + 1.8, 0]}
         center
@@ -147,7 +280,7 @@ export function ModernBuilding({
           }}
           className="group cursor-pointer flex items-center gap-1.5 p-1.5 pl-3 rounded-full bg-slate-900/90 hover:bg-slate-900 text-white border border-cyan-400/80 shadow-[0_4px_20px_rgba(56,189,248,0.35)] backdrop-blur-md transition-all duration-200 hover:scale-105 select-none"
         >
-          <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shrink-0 shadow-inner">
+          <div className="w-6 h-6 rounded-full bg-linear-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shrink-0 shadow-inner">
             {badgeIcon === "game" && <Gamepad2 className="w-3.5 h-3.5" />}
             {badgeIcon === "cafe" && <Coffee className="w-3.5 h-3.5" />}
             {badgeIcon === "office" && <Building2 className="w-3.5 h-3.5" />}
@@ -165,7 +298,7 @@ export function ModernBuilding({
             )}
           </div>
 
-          <div className="px-2.5 py-1 rounded-full bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-[10px] font-semibold text-white shadow-sm flex items-center gap-0.5 whitespace-nowrap">
+          <div className="px-2.5 py-1 rounded-full bg-linear-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-[10px] font-semibold text-white shadow-sm flex items-center gap-0.5 whitespace-nowrap">
             {badgeAction}
           </div>
         </div>
@@ -174,8 +307,13 @@ export function ModernBuilding({
   );
 }
 
-// Pohon Kartun Low Poly (Rescaled: Tinggi 4.5m - 6.5m manusiawi)
-export function LowPolyTree({ position, scale = 1.6 }: { position: [number, number, number]; scale?: number }) {
+export function LowPolyTree({
+  position,
+  scale = 1.6,
+}: {
+  position: [number, number, number];
+  scale?: number;
+}) {
   return (
     <group position={position} scale={scale}>
       {/* Batang Pohon */}
@@ -243,7 +381,11 @@ export function LowPolyCar({
 }
 
 // Lampu Jalan Miniatur (Tinggi 4.2m)
-export function StreetLamp({ position }: { position: [number, number, number] }) {
+export function StreetLamp({
+  position,
+}: {
+  position: [number, number, number];
+}) {
   return (
     <group position={position}>
       <mesh position={[0, 2.1, 0]} castShadow>
@@ -269,7 +411,13 @@ export function StreetLamp({ position }: { position: [number, number, number] })
 }
 
 // Bangku Taman (Park Bench)
-export function ParkBench({ position, rotation = [0, 0, 0] }: { position: [number, number, number]; rotation?: [number, number, number] }) {
+export function ParkBench({
+  position,
+  rotation = [0, 0, 0],
+}: {
+  position: [number, number, number];
+  rotation?: [number, number, number];
+}) {
   return (
     <group position={position} rotation={rotation}>
       {/* Dudukan kayu */}

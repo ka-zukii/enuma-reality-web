@@ -1,5 +1,11 @@
 import type { BuildingInfo } from "@/config/buildings";
-import { ModernBuilding, LowPolyTree, LowPolyCar, StreetLamp, ParkBench } from "@/components/CityProps";
+import {
+  ModernBuilding,
+  LowPolyTree,
+  LowPolyCar,
+  StreetLamp,
+  ParkBench,
+} from "@/components/CityProps";
 
 interface CityEnvironmentProps {
   onBuildingSelect: (building: BuildingInfo) => void;
@@ -12,13 +18,21 @@ export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
           LANTAI & GROUND DASAR KOTA BESAR (KELILING KOTA)
           ======================================================== */}
       {/* Padang Rumput Hijau Luas Luar Kota */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.06, 0]} receiveShadow>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, -0.06, 0]}
+        receiveShadow
+      >
         <planeGeometry args={[140, 140]} />
         <meshStandardMaterial color="#86efac" roughness={0.9} />
       </mesh>
 
       {/* Blok Utama Trotoar Paving Kota */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} receiveShadow>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.01, 0]}
+        receiveShadow
+      >
         <planeGeometry args={[84, 84]} />
         <meshStandardMaterial color="#e2e8f0" roughness={0.8} />
       </mesh>
@@ -27,32 +41,52 @@ export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
           JARINGAN JALAN RAYA KELILING KOTA (RING ROAD)
           ======================================================== */}
       {/* 1. Jalan Depan / Selatan (Horizontal: X: -38 s.d. 38, Z: 14) */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 14]} receiveShadow>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.02, 14]}
+        receiveShadow
+      >
         <planeGeometry args={[76, 7]} />
         <meshStandardMaterial color="#334155" roughness={0.7} />
       </mesh>
 
       {/* 2. Jalan Belakang / Utara (Horizontal: X: -38 s.d. 38, Z: -22) */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, -22]} receiveShadow>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.02, -22]}
+        receiveShadow
+      >
         <planeGeometry args={[76, 7]} />
         <meshStandardMaterial color="#334155" roughness={0.7} />
       </mesh>
 
       {/* 3. Jalan Samping Barat / Kiri (Vertikal: Z: -22 s.d. 14, X: -34.5) */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-34.5, 0.02, -4]} receiveShadow>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[-34.5, 0.02, -4]}
+        receiveShadow
+      >
         <planeGeometry args={[7, 43]} />
         <meshStandardMaterial color="#334155" roughness={0.7} />
       </mesh>
 
       {/* 4. Jalan Samping Timur / Kanan (Vertikal: Z: -22 s.d. 14, X: 34.5) */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[34.5, 0.02, -4]} receiveShadow>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[34.5, 0.02, -4]}
+        receiveShadow
+      >
         <planeGeometry args={[7, 43]} />
         <meshStandardMaterial color="#334155" roughness={0.7} />
       </mesh>
 
       {/* Marka Jalan Putih Putus-putus Jalan Selatan */}
       {[-28, -20, -12, -4, 4, 12, 20, 28].map((x) => (
-        <mesh key={`s-${x}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.025, 14]}>
+        <mesh
+          key={`s-${x}`}
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[x, 0.025, 14]}
+        >
           <planeGeometry args={[4, 0.3]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
@@ -60,7 +94,11 @@ export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
 
       {/* Marka Jalan Putih Putus-putus Jalan Utara */}
       {[-28, -20, -12, -4, 4, 12, 20, 28].map((x) => (
-        <mesh key={`n-${x}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.025, -22]}>
+        <mesh
+          key={`n-${x}`}
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[x, 0.025, -22]}
+        >
           <planeGeometry args={[4, 0.3]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
@@ -95,19 +133,31 @@ export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
       ))}
 
       {/* Area Parkir Mobil Luas di Kanan Bawah */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[20, 0.022, 23]} receiveShadow>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[20, 0.022, 23]}
+        receiveShadow
+      >
         <planeGeometry args={[26, 7.5]} />
         <meshStandardMaterial color="#1e293b" roughness={0.8} />
       </mesh>
       {[10, 14, 18, 22, 26, 30].map((x) => (
-        <mesh key={`park-${x}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.026, 23]}>
+        <mesh
+          key={`park-${x}`}
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[x, 0.026, 23]}
+        >
           <planeGeometry args={[0.2, 6.5]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
       ))}
 
       {/* Jalur Paving Pejalan Kaki / Promenade Tengah */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[6, 0.025, -4]} receiveShadow>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[6, 0.025, -4]}
+        receiveShadow
+      >
         <planeGeometry args={[4.8, 28]} />
         <meshStandardMaterial color="#cbd5e1" roughness={0.7} />
       </mesh>
@@ -116,56 +166,75 @@ export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
           BARISAN BANGUNAN PERKANTORAN MODERN (RESCALED 1:1 HUMAN)
           ======================================================== */}
 
-      {/* 1. Board Game & Mahjong Lounge (Sebelah Kiri) */}
+      {/* ========================================================
+          EMPAT GEDUNG UTAMA (BARIS DEPAN, z = -4)
+          ======================================================== */}
+
+      {/* 1. Warung Madura (paling kiri) */}
       <ModernBuilding
-        position={[-15, 0, -4]}
-        size={[11, 8.5, 10]}
-        color="#f8fafc"
-        roofColor="#0284c7"
-        name="Board Game & Mahjong Cafe"
-        subtitle="Tempat Santai & Main Bareng"
-        tag="DISEWAKAN"
-        badgeIcon="game"
+        position={[-25, 0, -4]}
+        size={[9, 6.5, 9]}
+        color="#fef3c7"
+        roofColor="#7c2d12"
+        accentColor="#f97316"
+        name="Warung Madura"
+        signText="WARUNG MADURA"
+        subtitle="Jajanan & Minuman"
+        tag="WARUNG"
+        variant="shop"
+        badgeIcon="shop"
         onClick={() =>
           onBuildingSelect({
-            buildingKey: "board-game-cafe",
-            name: "Board Game & Mahjong Cafe",
-            category: "Cafe & Entertainment",
-            desc: "Area lounge hiburan santai untuk anggota kantor bermain catur, board game, mahjong, dan mengobrol santai.",
-            status: "Tersedia untuk disewa / event komunitas",
+            buildingKey: "warung-madura",
+            name: "Warung Madura",
+            category: "Warung & Makanan Cepat",
+            desc: "Warung kecil dengan jajanan, minuman dingin, dan makanan siap saji untuk rekan kerja yang sedang lapar.",
+            status: "Buka · Jajanan & Minuman",
           })
         }
       />
 
-      {/* Dadu Raksasa Dekorasi Depan Board Game Cafe */}
-      <group position={[-23, 0.7, 3]}>
-        <mesh castShadow rotation={[0.2, 0.5, 0]}>
-          <boxGeometry args={[1.4, 1.4, 1.4]} />
-          <meshStandardMaterial color="#fef08a" roughness={0.3} />
-        </mesh>
-      </group>
-      <group position={[-21, 0.6, 3.8]}>
-        <mesh castShadow rotation={[0.1, -0.3, 0]}>
-          <boxGeometry args={[1.2, 1.2, 1.2]} />
-          <meshStandardMaterial color="#bae6fd" roughness={0.3} />
-        </mesh>
-      </group>
+      {/* 2. Indomart */}
+      <ModernBuilding
+        position={[-14, 0, -4]}
+        size={[9, 6.5, 10]}
+        color="#ffffff"
+        roofColor="#1e3a8a"
+        accentColor="#dc2626"
+        name="Indomart"
+        signText="INDOMART"
+        subtitle="Minimarket & Kebutuhan Harian"
+        tag="MINIMARKET"
+        variant="shop"
+        badgeIcon="shop"
+        onClick={() =>
+          onBuildingSelect({
+            buildingKey: "indomart",
+            name: "Indomart",
+            category: "Minimarket",
+            desc: "Minimarket untuk kebutuhan harian, minuman dingin, dan camilan selama bekerja.",
+            status: "Buka · Kebutuhan Harian",
+          })
+        }
+      />
 
-      {/* 2. Gedung Kantor Pusat Enuma Reality (Tengah Utama: 3 Lantai ~12m Tinggi) */}
+      {/* 3. Kantor Enuma Technology (tengah, paling tinggi) */}
       <ModernBuilding
         position={[-1, 0, -4]}
         size={[13, 12, 11]}
         color="#ffffff"
         roofColor="#0f172a"
-        name="Enuma Reality HQ"
+        accentColor="#2563eb"
+        name="Kantor Enuma Technology"
         subtitle="Pusat Kantor Virtual"
-        tag="ENUMA REALITY OFFICE"
+        tag="ENUMA TECHNOLOGY"
+        variant="office"
         badgeIcon="office"
         badgePosition={[0, 14.5, 0]}
         onClick={() =>
           onBuildingSelect({
             buildingKey: "enuma-hq",
-            name: "Enuma Reality Virtual Office",
+            name: "Kantor Enuma Technology",
             category: "Pusat Virtual Workspace",
             desc: "Gedung pusat virtual office 3 lantai lengkap dengan ruang kerja kolaboratif, auditorium meeting 3D, dan private booth.",
             status: "Aktif · Server Utama",
@@ -173,44 +242,29 @@ export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
         }
       />
 
-      {/* 3. M Cafe & Rooftop Garden (Sebelah Kanan) */}
+      {/* 4. Lunara Cafe (paling kanan) */}
       <ModernBuilding
-        position={[20, 0, -4]}
-        size={[11, 9.5, 10]}
-        color="#f8fafc"
-        roofColor="#475569"
-        name="M Cafe & Rooftop"
-        subtitle="Coffee, Drinks & Terrace"
-        tag="DISEWAKAN"
+        position={[14, 0, -4]}
+        size={[10, 8, 10]}
+        color="#fdf2f8"
+        roofColor="#831843"
+        accentColor="#f472b6"
+        name="Lunara Cafe"
+        signText="LUNARA"
+        subtitle="Kopi & Pastry"
+        tag="CAFE"
+        variant="cafe"
         badgeIcon="cafe"
         onClick={() =>
           onBuildingSelect({
-            buildingKey: "m-cafe",
-            name: "M Cafe & Terrace",
-            category: "F&B & Cafe",
-            desc: "Kafe modern dengan pemandangan terbuka, area rooftop untuk istirahat siang dan hangout santai rekan kerja.",
+            buildingKey: "lunara-cafe",
+            name: "Lunara Cafe",
+            category: "Cafe & Kopi",
+            desc: "Kafe hangat untuk ngopi, makan ringan, dan mengobrol santai bersama rekan kerja.",
             status: "Buka · Menu Kopi & Pastry",
           })
         }
       />
-
-      {/* Rooftop Cafe Details di Atas M Cafe (Payung, Meja, Kursi) */}
-      <group position={[20, 9.8, -4]}>
-        {/* Payung Kafe Pink */}
-        <mesh position={[0, 2.2, 0]} castShadow>
-          <coneGeometry args={[2.4, 1.1, 8]} />
-          <meshStandardMaterial color="#f472b6" roughness={0.4} />
-        </mesh>
-        <mesh position={[0, 1.1, 0]}>
-          <cylinderGeometry args={[0.07, 0.07, 2.2, 8]} />
-          <meshStandardMaterial color="#ffffff" />
-        </mesh>
-        {/* Meja Bundar */}
-        <mesh position={[0, 0.75, 0]} castShadow>
-          <cylinderGeometry args={[0.9, 0.9, 0.1, 16]} />
-          <meshStandardMaterial color="#ffffff" />
-        </mesh>
-      </group>
 
       {/* Bangunan Pendukung di Bagian Belakang Seberang Jalan Utara */}
       {[-24, -10, 10, 24].map((x) => (
@@ -231,12 +285,12 @@ export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
           ======================================================== */}
       {/* Pepohonan di Sepanjang Jalur Pejalan Kaki & Taman */}
       <LowPolyTree position={[3.5, 0, -12]} scale={1.8} />
-      <LowPolyTree position={[8.5, 0, -9]} scale={2.1} />
+      <LowPolyTree position={[7, 0, -13]} scale={2.1} />
       <LowPolyTree position={[3.5, 0, -1]} scale={1.7} />
       <LowPolyTree position={[8.5, 0, 5]} scale={2.0} />
 
       {/* Pohon di Sudut-sudut Kota */}
-      <LowPolyTree position={[-28, 0, -12]} scale={2.2} />
+      <LowPolyTree position={[-28, 0, -14]} scale={2.2} />
       <LowPolyTree position={[-28, 0, 6]} scale={2.0} />
       <LowPolyTree position={[30, 0, -12]} scale={2.3} />
       <LowPolyTree position={[30, 0, 6]} scale={2.1} />
@@ -259,7 +313,11 @@ export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
           KENDARAAN / MOBIL PROPORSIONAL
           ======================================================== */}
       {/* Mobil Sedan Merah di Seberang Jalan Utara */}
-      <LowPolyCar position={[16, 0, -22]} rotation={[0, 0, 0]} color="#ef4444" />
+      <LowPolyCar
+        position={[16, 0, -22]}
+        rotation={[0, 0, 0]}
+        color="#ef4444"
+      />
 
       {/* Mobil Putih & Biru Terparkir di Area Parkir */}
       <LowPolyCar position={[14, 0, 23]} rotation={[0, 0, 0]} color="#f8fafc" />
@@ -267,7 +325,11 @@ export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
       <LowPolyCar position={[28, 0, 23]} rotation={[0, 0, 0]} color="#0f172a" />
 
       {/* Mobil Hitam Melaju di Jalan Raya Selatan */}
-      <LowPolyCar position={[-14, 0, 14]} rotation={[0, -Math.PI / 2, 0]} color="#1e293b" />
+      <LowPolyCar
+        position={[-14, 0, 14]}
+        rotation={[0, -Math.PI / 2, 0]}
+        color="#1e293b"
+      />
 
       {/* ========================================================
           LAMPU JALAN KELILING KOTA

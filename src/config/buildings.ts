@@ -19,7 +19,12 @@ export interface Footprint {
 export const PLAYER_RADIUS = 0.45;
 
 // Harus sama dengan BUILDING_KEYS di backend (src/config/buildings.ts)
-export const BUILDING_KEYS = ["enuma-hq", "board-game-cafe", "m-cafe"] as const;
+export const BUILDING_KEYS = [
+  "enuma-hq",
+  "indomart",
+  "warung-madura",
+  "lunara-cafe",
+] as const;
 export type BuildingKey = (typeof BUILDING_KEYS)[number];
 
 /** Info gedung yang tampil di panel detail kota. `buildingKey` dipakai untuk tombol "Masuk" */
@@ -95,30 +100,42 @@ function makeInterior(name: string, accent: string): InteriorConfig {
   };
 }
 
+/**
+ * Empat gedung di baris utama (z = -4).
+ * Jarak antar gedung ±2 satuan, dan promenade tengah (x 3.6 s.d. 8.4) tetap kosong.
+ */
 export const BUILDINGS: BuildingConfig[] = [
   {
+    key: "warung-madura",
+    name: "Warung Madura",
+    footprint: { x: -25, z: -4, w: 9, d: 9 },
+    entrance: [-25, 0, 1.7],
+    entranceRadius: 3,
+    interior: makeInterior("Warung Madura", "#f97316"),
+  },
+  {
+    key: "indomart",
+    name: "Indomart",
+    footprint: { x: -14, z: -4, w: 9, d: 10 },
+    entrance: [-14, 0, 2.2],
+    entranceRadius: 3,
+    interior: makeInterior("Indomart", "#dc2626"),
+  },
+  {
     key: "enuma-hq",
-    name: "Enuma Reality Virtual Office",
+    name: "Kantor Enuma Technology",
     footprint: { x: -1, z: -4, w: 13, d: 11 },
     entrance: [-1, 0, 2.7],
     entranceRadius: 3,
-    interior: makeInterior("Enuma Reality HQ", "#2563eb"),
+    interior: makeInterior("Kantor Enuma Technology", "#2563eb"),
   },
   {
-    key: "board-game-cafe",
-    name: "Board Game & Mahjong Cafe",
-    footprint: { x: -15, z: -4, w: 11, d: 10 },
-    entrance: [-15, 0, 2.2],
+    key: "lunara-cafe",
+    name: "Lunara Cafe",
+    footprint: { x: 14, z: -4, w: 10, d: 10 },
+    entrance: [14, 0, 2.2],
     entranceRadius: 3,
-    interior: makeInterior("Board Game & Mahjong Cafe", "#f59e0b"),
-  },
-  {
-    key: "m-cafe",
-    name: "M Cafe & Terrace",
-    footprint: { x: 20, z: -4, w: 11, d: 10 },
-    entrance: [20, 0, 2.2],
-    entranceRadius: 3,
-    interior: makeInterior("M Cafe & Terrace", "#ec4899"),
+    interior: makeInterior("Lunara Cafe", "#f472b6"),
   },
 ];
 

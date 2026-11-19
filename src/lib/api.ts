@@ -10,16 +10,44 @@ export async function getAccessToken(): Promise<string | null> {
   return data.session?.access_token ?? null;
 }
 
-/** fetch ke backend dengan Bearer token terbaru. Lempar error bila belum login. */
+async function doFetch(
+  path: string,
+  init: RequestInit,
+  token: string,
+): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  return fetch(`${API_URL}${path}`, { ...init, headers });
+}
+
+/**
+ * fetch ke backend dengan Bearer token terbaru.
+ * Jika backend menjawab 401, sesi di-refresh sekali lalu request diulang.
+ * Bila refresh gagal, sesi lama dihapus dan error khusus dilempar agar UI
+ * bisa kembali ke formulir masuk.
+ */
 export async function authFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
   const token = await getAccessToken();
-  if (!token) throw new Error("Belum login");
+  if (!token) throw new SessionExpiredError();
 
-  const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${token}`);
+  const res = await doFetch(path, init, token);
+  if (res.status !== 401) return res;
 
-  return fetch(`${API_URL}${path}`, { ...init, headers });
+  const { data, error } = await supabase.auth.refreshSession();
+  if (error || !data.session?.access_token) {
+    await supabase.auth.signOut();
+    throw new SessionExpiredError();
+  }
+
+  return doFetch(path, init, data.session.access_token);
+}
+
+export class SessionExpiredError extends Error {
+  constructor() {
+    super("Sesi berakhir, silakan mulai ulang");
+    this.name = "SessionExpiredError";
+  }
 }

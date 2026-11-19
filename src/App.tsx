@@ -26,6 +26,8 @@ import {
   type BuildingInfo,
   type Vec3,
 } from "@/config/buildings";
+import { AnimatePresence } from "framer-motion";
+import { LoadingScreen } from "@/components/entry/LoadingScreen";
 
 // Interior hanya dimuat saat pemain benar-benar masuk gedung
 const InteriorPage = lazy(() => import("@/pages/InteriorPage"));
@@ -107,7 +109,7 @@ function BuildingPrompt({
   );
 }
 
-export default function App() {
+function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const { session, loading } = useAuth();
@@ -445,5 +447,19 @@ export default function App() {
         onSwitchWorkspace={switchWorkspace}
       />
     </div>
+  );
+}
+
+export default function App() {
+  const [splashDone, setSplashDone] = useState(false);
+  const finishSplash = useCallback(() => setSplashDone(true), []);
+
+  return (
+    <>
+      <AppContent />
+      <AnimatePresence>
+        {!splashDone && <LoadingScreen onFinish={finishSplash} />}
+      </AnimatePresence>
+    </>
   );
 }

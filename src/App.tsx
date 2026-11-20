@@ -144,7 +144,7 @@ function AppContent() {
   const [currentZone, setCurrentZone] = useState("jalan-utama");
   const [isChatFocused, setIsChatFocused] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
-  const [cameraMode, setCameraMode] = useState<"iso" | "follow">("iso");
+  const [cameraMode, setCameraMode] = useState<"iso" | "follow">("follow");
   const [selectedBuilding, setSelectedBuilding] = useState<BuildingInfo | null>(
     null,
   );
@@ -275,6 +275,35 @@ function AppContent() {
     enterRoom,
     navigate,
   ]);
+
+  // Tombol C: ganti sudut pandang kamera
+  useEffect(() => {
+    if (!isSignedIn) return;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "KeyC" || e.repeat) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (isChatFocused || showJoinModal) return;
+
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)
+      ) {
+        return;
+      }
+
+      setCameraMode((prev) => (prev === "iso" ? "follow" : "iso"));
+    };
+
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [isSignedIn, isChatFocused, showJoinModal]);  
+
+  // Setiap masuk atau keluar mode jelajah, kamera kembali ke default (ikuti karakter)
+  useEffect(() => {
+    setCameraMode("follow");
+  }, [userId]);  
 
   if (loading) {
     return (

@@ -4,9 +4,6 @@ export const COMPANY = {
   name: "Enuma Technology",
   tagline: "Software · IoT · Robotics",
   city: "Karanganyar",
-  // Perkiraan pusat kota Karanganyar, dipakai untuk cuaca
-  lat: -7.5306,
-  lon: 110.7615,
 };
 
 /**

@@ -83,3 +83,16 @@ export const STATUS_CHIPS = [
   "Sore",
   "Malam",
 ] as const;
+
+
+/**
+ * Kontak untuk popup Keluar. Isi dengan data resmi dari Enuma.
+ * - email: alamat email (untuk tombol "Tanya lewat email")
+ * - instagram: username tanpa @ (untuk tombol Follow)
+ * Selama kosong, tombol email mengarah ke website dan tombol Follow nonaktif.
+ */
+export const CONTACT = {
+  website: "https://enumatechnology.com",
+  email: "",
+  instagram: "",
+};

@@ -1,6 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, Radio, Globe, Lock, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Globe,
+  Lock,
+  MessageSquare,
+  Radio,
+  Send,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import type { ChatMessage, RemotePlayer } from "@/types";
+
+type Channel = "PROXIMITY" | "GLOBAL" | "PRIVATE";
+
+const CHANNELS: { value: Channel; label: string; Icon: LucideIcon }[] = [
+  { value: "PROXIMITY", label: "Sekitar", Icon: Radio },
+  { value: "GLOBAL", label: "Global", Icon: Globe },
+  { value: "PRIVATE", label: "Private", Icon: Lock },
+];
 
 interface RobloxChatBoxProps {
   currentUserId: string;
@@ -10,10 +26,13 @@ interface RobloxChatBoxProps {
   disabledShortcuts?: boolean;
   onFocusChange: (focused: boolean) => void;
   onSendMessage: (
-    channel: "PROXIMITY" | "GLOBAL" | "PRIVATE",
+    channel: Channel,
     content: string,
     receiverId?: string,
   ) => void;
+  /** Panel terbuka atau hanya pratinjau pesan terakhir */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function RobloxChatBox({
@@ -24,61 +43,46 @@ export function RobloxChatBox({
   disabledShortcuts = false,
   onFocusChange,
   onSendMessage,
+  open,
+  onOpenChange,
 }: RobloxChatBoxProps) {
-  const [channel, setChannel] = useState<"PROXIMITY" | "GLOBAL" | "PRIVATE">(
-    "PROXIMITY",
-  );
+  const [channel, setChannel] = useState<Channel>("PROXIMITY");
   const [privateTargetId, setPrivateTargetId] = useState("");
   const [input, setInput] = useState("");
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [warn, setWarn] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
 
-  // Otomatis minimize saat layar ponsel kecil
+  // Tekan "/" untuk membuka dan fokus chat, "Esc" untuk berhenti mengetik
   useEffect(() => {
-    if (window.innerWidth < 640) {
-      setIsCollapsed(true);
-    }
-  }, []);
-
-  // Shortcut "/" untuk fokus chat & "Escape" untuk keluar
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === "/" && !isFocused && !disabledShortcuts) {
         e.preventDefault();
-        setIsCollapsed(false);
-        inputRef.current?.focus();
+        onOpenChange(true);
+        window.setTimeout(() => inputRef.current?.focus(), 50);
       } else if (e.key === "Escape" && isFocused) {
         inputRef.current?.blur();
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isFocused, disabledShortcuts]);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isFocused, disabledShortcuts, onOpenChange]);
 
-  // Pisahkan pesan per tab (tidak bercampur/numpuk)
-  const filteredMessages = messages.filter((m) => {
-    if (channel === "PROXIMITY") return m.channel === "PROXIMITY";
-    if (channel === "GLOBAL") return m.channel === "GLOBAL";
-    if (channel === "PRIVATE") return m.channel === "PRIVATE";
-    return true;
-  });
+  const filtered = messages.filter((m) => m.channel === channel);
 
   useEffect(() => {
-    if (!isCollapsed) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [filteredMessages.length, isCollapsed, channel]);
+    if (open) endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [filtered.length, open, channel]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
     if (channel === "PRIVATE" && !privateTargetId) {
-      alert("Pilih pemain tujuan untuk Private Chat!");
+      setWarn(true);
       return;
     }
-
+    setWarn(false);
     onSendMessage(
       channel,
       input,
@@ -87,88 +91,79 @@ export function RobloxChatBox({
     setInput("");
   };
 
+  // Panel tertutup: tampilkan 3 pesan terakhir sebagai pratinjau
+  if (!open) {
+    const recent = messages.slice(-3);
+    if (recent.length === 0) return null;
+    return (
+      <div className="pointer-events-auto w-full rounded-xl bg-slate-900/45 px-3 py-2 text-xs leading-relaxed text-white backdrop-blur-sm">
+        {recent.map((m) => (
+          <p key={m.id} className="truncate">
+            <span className="font-bold text-sky-300">
+              {m.senderId === currentUserId ? "Kamu" : m.senderName}:
+            </span>{" "}
+            {m.content}
+          </p>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="pointer-events-auto flex flex-col w-[calc(100vw-2rem)] max-w-[320px] sm:max-w-[360px] md:max-w-[380px] rounded-2xl bg-white/95 backdrop-blur-md border border-white/70 text-slate-800 shadow-xl shadow-black/5 transition-all duration-200 select-none font-sans overflow-hidden">
-      {/* Top Header / Channel Tabs */}
-      <div className="flex items-center justify-between px-2 sm:px-2.5 py-1.5 bg-slate-50/80 border-b border-slate-100 text-xs">
-        {/* Channel Selector Tabs Terpisah */}
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => {
-              setChannel("PROXIMITY");
-              setIsCollapsed(false);
-            }}
-            className={`px-2.5 py-1 rounded-xl text-[10px] sm:text-[11px] font-bold flex items-center gap-1 transition ${
-              channel === "PROXIMITY"
-                ? "bg-cyan-500 text-white shadow-sm shadow-cyan-500/20"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
-            }`}
-          >
-            <Radio className="w-3 h-3" />
-            <span>Sekitar</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setChannel("GLOBAL");
-              setIsCollapsed(false);
-            }}
-            className={`px-2.5 py-1 rounded-xl text-[10px] sm:text-[11px] font-bold flex items-center gap-1 transition ${
-              channel === "GLOBAL"
-                ? "bg-blue-600 text-white shadow-sm shadow-blue-500/20"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
-            }`}
-          >
-            <Globe className="w-3 h-3" />
-            <span>Global</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setChannel("PRIVATE");
-              setIsCollapsed(false);
-            }}
-            className={`px-2.5 py-1 rounded-xl text-[10px] sm:text-[11px] font-bold flex items-center gap-1 transition ${
-              channel === "PRIVATE"
-                ? "bg-amber-500 text-white shadow-sm shadow-amber-500/20"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
-            }`}
-          >
-            <Lock className="w-3 h-3" />
-            <span>Private</span>
-          </button>
+    <div className="pointer-events-auto w-full overflow-hidden rounded-2xl bg-white/95 text-slate-800 shadow-xl backdrop-blur">
+      <div className="flex items-center justify-between px-3 pt-3">
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+            <MessageSquare className="h-4 w-4" />
+          </span>
+          <h3 className="text-sm font-bold">Obrolan</h3>
         </div>
-
-        {/* Toggle Collapse Box */}
         <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-1 rounded-lg hover:bg-slate-200/60 text-slate-400 hover:text-slate-700 transition"
-          title={isCollapsed ? "Buka Chat" : "Kecilkan Chat"}
+          onClick={() => {
+            inputRef.current?.blur();
+            onOpenChange(false);
+          }}
+          aria-label="Tutup obrolan"
+          className="rounded-full p-1 text-slate-500 transition hover:bg-slate-100 cursor-pointer"
         >
-          {isCollapsed ? (
-            <ChevronDown className="w-3.5 h-3.5" />
-          ) : (
-            <ChevronUp className="w-3.5 h-3.5" />
-          )}
+          <X className="h-4 w-4" />
         </button>
       </div>
 
-      {/* Target selector bila tab PRIVATE */}
-      {!isCollapsed && channel === "PRIVATE" && (
-        <div className="px-3 py-1.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-1.5 text-xs">
-          <span className="text-[10px] font-extrabold text-amber-700 uppercase shrink-0">
-            Kirim ke:
+      {/* Tab: Sekitar / Global / Private */}
+      <div className="mt-2 flex gap-1 px-3">
+        {CHANNELS.map(({ value, label, Icon }) => (
+          <button
+            key={value}
+            onClick={() => setChannel(value)}
+            className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
+              channel === value
+                ? "bg-blue-600 text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            <Icon className="h-3 w-3" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {channel === "PRIVATE" && (
+        <div className="mx-3 mt-2 flex items-center gap-2 rounded-lg bg-slate-50 px-2 py-1.5">
+          <span className="shrink-0 text-[11px] font-bold text-slate-500">
+            Kirim ke
           </span>
           <select
             value={privateTargetId}
-            onChange={(e) => setPrivateTargetId(e.target.value)}
-            className="flex-1 bg-white border border-amber-300 rounded-lg px-2 py-0.5 text-[11px] font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-amber-400"
+            onChange={(e) => {
+              setPrivateTargetId(e.target.value);
+              setWarn(false);
+            }}
+            className="flex-1 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs outline-none focus:border-blue-500"
           >
-            <option value="" className="text-slate-400">
-              -- Pilih Pemain Online ({remotePlayers.length}) --
-            </option>
+            <option value="">Pilih pemain ({remotePlayers.length})</option>
             {remotePlayers.map((p) => (
-              <option key={p.userId} value={p.userId} className="text-slate-800">
+              <option key={p.userId} value={p.userId}>
                 {p.fullName}
               </option>
             ))}
@@ -176,84 +171,64 @@ export function RobloxChatBox({
         </div>
       )}
 
-      {/* Chat Messages Log Khusus Tab yang Aktif */}
-      {!isCollapsed && (
-        <div className="h-32 sm:h-44 md:h-52 overflow-y-auto p-2.5 space-y-1.5 text-[11px] leading-relaxed scrollbar-thin scrollbar-thumb-slate-200">
-          {filteredMessages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400 text-center gap-1">
-              <MessageSquare className="w-4 h-4 text-slate-300" />
-              <span className="text-[11px] font-medium text-slate-500">
-                Belum ada pesan di tab {channel === "PROXIMITY" ? "Sekitar" : channel === "GLOBAL" ? "Global" : "Private"}.
-              </span>
-              <span className="text-[10px] text-slate-400">
-                Tekan <kbd className="px-1 py-px rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono">/</kbd> untuk chat
-              </span>
-            </div>
-          ) : (
-            filteredMessages.map((m) => {
-              const isMe = m.senderId === currentUserId;
-              return (
-                <div key={m.id} className="break-words">
-                  <span
-                    className={`inline-block px-1.5 py-px mr-1 rounded text-[8px] sm:text-[9px] font-extrabold uppercase ${
-                      m.channel === "PROXIMITY"
-                        ? "bg-cyan-100 text-cyan-800"
-                        : m.channel === "GLOBAL"
-                          ? "bg-blue-100 text-blue-800"
-                          : "bg-amber-100 text-amber-800"
-                    }`}
-                  >
-                    {m.channel === "PROXIMITY"
-                      ? "Sekitar"
-                      : m.channel === "GLOBAL"
-                        ? "Global"
-                        : "Private"}
-                  </span>
+      <div className="mt-2 h-40 space-y-1 overflow-y-auto px-3 text-xs leading-relaxed">
+        {filtered.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-slate-400">
+            <span>Belum ada pesan.</span>
+            <span className="text-[11px]">
+              Tekan{" "}
+              <kbd className="rounded border border-slate-200 bg-slate-100 px-1 font-mono text-slate-600">
+                /
+              </kbd>{" "}
+              untuk chat
+            </span>
+          </div>
+        ) : (
+          filtered.map((m) => {
+            const isMe = m.senderId === currentUserId;
+            return (
+              <p key={m.id} className="break-words">
+                <span
+                  className={`font-bold ${
+                    isMe ? "text-emerald-600" : "text-blue-600"
+                  }`}
+                >
+                  {isMe ? "Kamu" : m.senderName}
+                  {m.channel === "PRIVATE" && m.receiverName
+                    ? ` → ${m.receiverName}`
+                    : ""}
+                  :
+                </span>{" "}
+                <span className="text-slate-700">{m.content}</span>
+              </p>
+            );
+          })
+        )}
+        <div ref={endRef} />
+      </div>
 
-                  <span
-                    className={`font-bold mr-1 ${
-                      isMe ? "text-blue-600" : "text-slate-900"
-                    }`}
-                  >
-                    [{isMe ? "Kamu" : m.senderName}
-                    {m.channel === "PRIVATE" && m.receiverName
-                      ? ` → ${m.receiverName}`
-                      : ""}
-                    ]:
-                  </span>
-
-                  <span className="text-slate-700">{m.content}</span>
-                </div>
-              );
-            })
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+      {warn && (
+        <p className="px-3 pt-1 text-[11px] text-rose-500">
+          Pilih pemain tujuan dulu untuk chat private.
+        </p>
       )}
 
-      {/* Form Input Chat */}
-      <form
-        onSubmit={handleSubmit}
-        className="flex items-center gap-1.5 p-1.5 bg-slate-50/90 border-t border-slate-100"
-      >
+      <form onSubmit={handleSubmit} className="flex items-center gap-2 p-3">
         <input
           ref={inputRef}
-          type="text"
           value={input}
-          onFocus={() => {
-            setIsCollapsed(false);
-            onFocusChange(true);
-          }}
+          onFocus={() => onFocusChange(true)}
           onBlur={() => onFocusChange(false)}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={`[${channel}] Tulis pesan (tekan /)...`}
-          className="flex-1 px-3 py-1.5 rounded-xl bg-white border border-slate-200 focus:border-blue-500 text-xs text-slate-800 placeholder:text-slate-400 outline-none transition shadow-inner"
+          placeholder="Klik di sini atau tekan / untuk chat"
+          className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none placeholder:text-slate-400 focus:border-blue-500"
         />
         <button
           type="submit"
-          className="p-1.5 sm:p-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20 transition active:scale-95 shrink-0"
+          aria-label="Kirim"
+          className="shrink-0 rounded-xl bg-blue-600 p-2 text-white transition hover:bg-blue-700 active:scale-95 cursor-pointer"
         >
-          <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+          <Send className="h-3.5 w-3.5" />
         </button>
       </form>
     </div>

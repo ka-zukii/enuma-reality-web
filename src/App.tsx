@@ -8,7 +8,7 @@ import {
 } from "react";
 import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
-import { AlertCircle, Building2, DoorOpen, LogOut, X } from "lucide-react";
+import { AlertCircle, Building2, LogOut, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useOfficeSocket } from "@/hooks/useOfficeSocket";
 import { GuestJoinModal } from "@/components/entry/GuestJoinModal";
@@ -57,6 +57,14 @@ function SceneCanvas({
   );
 }
 
+/** Teks popup per gedung. Gedung lain memakai nama gedungnya. */
+const PROMPT_COPY: Record<string, { title: string; desc: string }> = {
+  "enuma-hq": {
+    title: "Gedung Kantor",
+    desc: "Anda akan masuk area kantor Enuma Technology.",
+  },
+};
+
 function BuildingPrompt({
   building,
   onEnter,
@@ -66,43 +74,40 @@ function BuildingPrompt({
   onEnter: () => void;
   onDismiss: () => void;
 }) {
-  return (
-    <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-sm rounded-3xl bg-white/95 backdrop-blur-xl border border-white/80 shadow-2xl p-5 text-slate-800 animate-in fade-in slide-in-from-bottom-2 duration-200">
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-          <Building2 className="w-5 h-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-extrabold text-slate-900">
-            {building.name}
-          </p>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Masuk ke dalam gedung?
-          </p>
-        </div>
-        <button
-          onClick={onDismiss}
-          className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition cursor-pointer"
-          aria-label="Tutup"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
+  const copy = PROMPT_COPY[building.key] ?? {
+    title: building.name,
+    desc: `Anda akan masuk ke ${building.name}.`,
+  };
 
-      <div className="flex gap-2 mt-4">
-        <button
-          onClick={onDismiss}
-          className="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
-        >
-          Nanti
-        </button>
-        <button
-          onClick={onEnter}
-          className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-        >
-          <DoorOpen className="w-3.5 h-3.5" />
-          Masuk
-        </button>
+  return (
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-[1px]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-[420px] rounded-3xl bg-white px-6 py-6 text-center shadow-2xl"
+      >
+        <img src="/logo-enuma.png" alt="" className="mx-auto h-12 w-12" />
+        <h2 className="mt-3 text-xl font-extrabold text-slate-900">
+          Masuk ke <span className="text-blue-600">{copy.title}</span>?
+        </h2>
+        <p className="mt-1.5 text-sm text-slate-600">{copy.desc}</p>
+
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+          <button
+            onClick={onDismiss}
+            className="flex flex-1 items-center justify-center gap-2 rounded-full border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50 cursor-pointer"
+          >
+            <X className="h-4 w-4" />
+            Tidak, terimakasih
+          </button>
+          <button
+            onClick={onEnter}
+            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-blue-600 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-600/25 transition hover:bg-blue-700 cursor-pointer"
+          >
+            <Building2 className="h-4 w-4" />
+            Masuk Sekarang
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -111,7 +116,7 @@ function BuildingPrompt({
 function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { session, loading } = useAuth();
+  const { session, loading, signOut } = useAuth();
   // Hanya id user yang dipakai untuk koneksi, supaya refresh token tidak memicu join ulang
   const userId = session?.user.id ?? null;
   const isSignedIn = userId !== null;
@@ -400,7 +405,7 @@ function AppContent() {
       {urlBuildingKey && isInteriorReady && (
         <button
           onClick={() => navigate("/")}
-          className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/95 border border-white/80 shadow-lg text-xs font-bold text-slate-700 hover:text-blue-600 transition cursor-pointer"
+          className="absolute top-[72px] left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/95 border border-white/80 shadow-lg text-xs font-bold text-slate-700 hover:text-blue-600 transition cursor-pointer"
         >
           <LogOut className="w-3.5 h-3.5" />
           Keluar ke Kota
@@ -437,6 +442,7 @@ function AppContent() {
         workspaceName={currentBuilding?.interior.name ?? workspace?.name}
         userStatus={selfInfo?.status ?? "LIVE"}
         onStatusChange={setStatus}
+        onExit={() => void signOut()}
       />
 
       <JoinWorkspaceModal

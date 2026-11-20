@@ -8,7 +8,7 @@ import {
   CloudFog,
   CloudLightning,
   CloudRain,
-  Eye,
+  Camera,
   MessageSquare,
   Server,
   Sun,
@@ -261,7 +261,7 @@ export function VOfficeOverlay({
                 : "bg-white/95 text-slate-700 hover:bg-white"
             }`}
           >
-            <Eye className="h-4 w-4" />
+            <Camera className="h-4 w-4" />
           </button>
           {menu === "view" && (
             <div className={menuBox}>

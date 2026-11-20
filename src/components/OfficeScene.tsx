@@ -23,6 +23,7 @@ import {
   type InteriorConfig,
   type Vec3,
 } from "@/config/buildings";
+import type { CameraMode } from "@/config/camera";
 
 interface OfficeSceneProps {
   socket: Socket | null;
@@ -42,7 +43,7 @@ interface OfficeSceneProps {
   onBuildingSelect?: (building: BuildingInfo) => void;
   /** Dipanggil dengan throttle (sekitar 6x per detik) saat posisi lokal berubah */
   onLocalPositionChange?: (pos: Vec3) => void;
-  cameraMode: "iso" | "follow";
+  cameraMode: CameraMode;
   /** Mode pengamat (sebelum masuk): tanpa avatar lokal dan tanpa kontrol gerak */
   spectator?: boolean;
   /** Jika diisi, scene menjadi interior gedung, bukan kota */
@@ -140,6 +141,7 @@ export function OfficeScene({
   const emitTimer = useRef(0);
   const posReportTimer = useRef(0);
   const [isFirstPerson, setIsFirstPerson] = useState(false);
+  const prevModeRef = useRef<CameraMode>(cameraMode);
 
   // Beri tahu HUD bahwa zona sekarang interior
   useEffect(() => {
@@ -260,6 +262,30 @@ export function OfficeScene({
     // Kamera follow pemain & deteksi First Person jika di-zoom mentok
     if (controlsRef.current) {
       const controls = controlsRef.current;
+      // Saat mode berganti, atur ulang posisi kamera terhadap karakter
+      if (prevModeRef.current !== cameraMode) {
+        const off = camera.position.clone().sub(controls.target);
+        off.y = 0;
+        if (off.lengthSq() < 1e-6) off.set(0, 0, 1);
+        off.normalize();
+
+        if (cameraMode === "first") {
+          // Kamera menempel di kepala, arah pandang mengikuti arah kamera sebelumnya
+          camera.position
+            .copy(controls.target)
+            .addScaledVector(off, 0.6);
+          camera.position.y = controls.target.y + 0.1;
+        } else if (prevModeRef.current === "first") {
+          // Keluar dari orang pertama: mundur kembali
+          camera.position.set(
+            controls.target.x + off.x * 10,
+            controls.target.y + 7,
+            controls.target.z + off.z * 10,
+          );
+        }
+        prevModeRef.current = cameraMode;
+      }
+
       const dist = camera.position.distanceTo(controls.target);
 
       // Jika di-zoom sangat dekat (<= 1.25m), aktifkan First Person
@@ -338,8 +364,9 @@ export function OfficeScene({
         enableDamping
         dampingFactor={0.07}
         maxPolarAngle={Math.PI / 2.1}
-        minDistance={0.3}
-        maxDistance={isInterior ? 14 : 48}
+        minDistance={cameraMode === "first" ? 0.6 : 0.3}
+        maxDistance={cameraMode === "first" ? 0.6 : isInterior ? 14 : 48}
+        enableZoom={cameraMode !== "first"}
         zoomSpeed={1.8}
         target={[spawn[0], 1.55, spawn[2]]}
       />

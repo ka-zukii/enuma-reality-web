@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AlertCircle, Compass, Loader2, X } from "lucide-react";
 import { startAsGuest, type Character } from "@/lib/guest";
+import { LoginModal } from "./LoginModal";
 
 interface GuestJoinModalProps {
   onClose: () => void;
@@ -21,6 +22,7 @@ export function GuestJoinModal({ onClose, onLogin }: GuestJoinModalProps) {
   const [character, setCharacter] = useState<Character>("karakter_1");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showLogin, setShowLogin] = useState(false);
 
   const cleanName = name.trim();
   const canJoin = cleanName.length > 0 && !loading;
@@ -37,6 +39,10 @@ export function GuestJoinModal({ onClose, onLogin }: GuestJoinModalProps) {
       setLoading(false);
     }
   };
+
+  if (showLogin) {
+    return <LoginModal onBack={() => setShowLogin(false)} onClose={onClose} />;
+  }  
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-[2px] select-text">
@@ -129,7 +135,10 @@ export function GuestJoinModal({ onClose, onLogin }: GuestJoinModalProps) {
           Mulai menjelajah
         </button>
         <button
-          onClick={() => onLogin?.()}
+          onClick={() => {
+            setShowLogin(true);
+            onLogin?.();
+          }}
           disabled={loading}
           className="mt-2 w-full py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 disabled:opacity-60 transition cursor-pointer"
         >

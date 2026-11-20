@@ -4,6 +4,7 @@ import { OfficeScene } from "@/components/OfficeScene";
 import type { BuildingConfig } from "@/config/buildings";
 import type { RemotePlayer } from "@/types";
 import type { PlayerTickData } from "@/hooks/useOfficeSocket";
+import type { CameraMode } from "@/config/camera";
 
 interface InteriorPageProps {
   building: BuildingConfig;
@@ -13,7 +14,7 @@ interface InteriorPageProps {
   remoteTicksRef: RefObject<Record<string, PlayerTickData>>;
   bubbles: Record<string, string>;
   onZoneChange: (zone: string) => void;
-  cameraMode: "iso" | "follow";
+  cameraMode: CameraMode;
   isChatFocused: boolean;
   onExit: () => void;
 }

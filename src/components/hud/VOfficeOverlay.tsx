@@ -26,6 +26,7 @@ import { STATUS_OPTIONS, getStatusMeta } from "@/config/status";
 import { zoneLabel } from "@/config/zones";
 import { useWeather, type WeatherKind } from "@/hooks/useWeather";
 import type { BuildingInfo } from "@/config/buildings";
+import { CAMERA_OPTIONS, type CameraMode } from "@/config/camera";
 
 interface VOfficeOverlayProps {
   currentUserId: string;
@@ -42,8 +43,8 @@ interface VOfficeOverlayProps {
   selectedBuilding?: BuildingInfo | null;
   onCloseBuildingDetail?: () => void;
   onEnterBuilding?: () => void;
-  cameraMode: "iso" | "follow";
-  onToggleCameraMode: () => void;
+  cameraMode: CameraMode;
+  onCameraModeChange: (mode: CameraMode) => void;
   isChatFocused: boolean;
   onFocusChatChange: (focused: boolean) => void;
   onOpenWorkspaceModal: () => void;
@@ -62,11 +63,7 @@ const WEATHER_ICON: Record<WeatherKind, LucideIcon> = {
   storm: CloudLightning,
 };
 
-/** Pilihan di menu Sudut Pandang. Preset ruangan ditambahkan setelah kamera disambungkan. */
-const CAMERA_OPTIONS: { value: "follow" | "iso"; label: string }[] = [
-  { value: "follow", label: "Ikuti karakter" },
-  { value: "iso", label: "Isometrik" },
-];
+
 
 const pillClass =
   "flex h-9 items-center rounded-full bg-white/95 shadow-lg backdrop-blur";
@@ -90,7 +87,7 @@ export function VOfficeOverlay({
   onCloseBuildingDetail,
   onEnterBuilding,
   cameraMode,
-  onToggleCameraMode,
+  onCameraModeChange,
   isChatFocused,
   onFocusChatChange,
   onOpenWorkspaceModal,
@@ -264,7 +261,7 @@ export function VOfficeOverlay({
                   <button
                     key={opt.value}
                     onClick={() => {
-                      if (!active) onToggleCameraMode();
+                      onCameraModeChange(opt.value);
                       setMenu(null);
                     }}
                     className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-bold transition cursor-pointer ${

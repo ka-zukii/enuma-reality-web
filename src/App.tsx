@@ -27,6 +27,7 @@ import {
   type Vec3,
 } from "@/config/buildings";
 import LoadingScreen from "@/components/entry/LoadingScreen";
+import { CAMERA_CYCLE, type CameraMode } from "@/config/camera";
 
 // Interior hanya dimuat saat pemain benar-benar masuk gedung
 const InteriorPage = lazy(() => import("@/pages/InteriorPage"));
@@ -144,7 +145,7 @@ function AppContent() {
   const [currentZone, setCurrentZone] = useState("jalan-utama");
   const [isChatFocused, setIsChatFocused] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
-  const [cameraMode, setCameraMode] = useState<"iso" | "follow">("follow");
+  const [cameraMode, setCameraMode] = useState<CameraMode>("follow");
   const [selectedBuilding, setSelectedBuilding] = useState<BuildingInfo | null>(
     null,
   );
@@ -293,7 +294,10 @@ function AppContent() {
         return;
       }
 
-      setCameraMode((prev) => (prev === "iso" ? "follow" : "iso"));
+      setCameraMode((prev) => {
+        const i = CAMERA_CYCLE.indexOf(prev);
+        return CAMERA_CYCLE[(i + 1) % CAMERA_CYCLE.length];
+      });
     };
 
     window.addEventListener("keydown", onKey, true);
@@ -462,9 +466,7 @@ function AppContent() {
         onCloseBuildingDetail={() => setSelectedBuilding(null)}
         onEnterBuilding={handleEnterSelectedBuilding}
         cameraMode={cameraMode}
-        onToggleCameraMode={() =>
-          setCameraMode((prev) => (prev === "iso" ? "follow" : "iso"))
-        }
+        onCameraModeChange={setCameraMode}
         isChatFocused={isChatFocused}
         onFocusChatChange={setIsChatFocused}
         onOpenWorkspaceModal={() => setShowJoinModal(true)}

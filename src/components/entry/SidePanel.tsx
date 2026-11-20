@@ -66,7 +66,9 @@ function InfoCard({
               <span className="font-semibold">{weather.label}</span> ·{" "}
               {weather.temp}°C
             </p>
-            <p className="text-xs text-slate-500">{COMPANY.city}</p>
+            <p className="text-xs text-slate-500">
+              {weather.place ?? COMPANY.city}
+            </p>
           </div>
         </div>
       )}

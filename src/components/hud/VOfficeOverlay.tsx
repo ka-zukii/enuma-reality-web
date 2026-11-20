@@ -112,6 +112,19 @@ export function VOfficeOverlay({
     return () => window.clearTimeout(t);
   }, [showHelp]);
 
+  // Esc: tutup obrolan dan lepas fokus ketikan
+  useEffect(() => {
+    if (!chatOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      onFocusChatChange(false);
+      setChatOpen(false);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [chatOpen, onFocusChatChange]);
+
   const menuBox =
     "absolute right-0 top-full z-10 mt-2 w-52 rounded-2xl bg-white p-2 shadow-2xl";
 
@@ -381,8 +394,11 @@ export function VOfficeOverlay({
                 Seret mouse untuk menoleh.
               </p>
               <p className="mt-1.5 flex items-center justify-center gap-1.5 text-xs text-slate-700">
-                <Key>/</Key> membuka chat
-                <Key>Esc</Key> berhenti mengetik
+                <Key>C</Key> ganti kamera
+              </p>
+              <p className="mt-1.5 flex items-center justify-center gap-1.5 text-xs text-slate-700">
+                <Key>/</Key> buka chat
+                <Key>Esc</Key> tutup chat
               </p>
             </motion.div>
           )}

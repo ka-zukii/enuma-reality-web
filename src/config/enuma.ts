@@ -5,8 +5,8 @@ export const COMPANY = {
   tagline: "Software · IoT · Robotics",
   city: "Karanganyar",
   // Perkiraan pusat kota Karanganyar, dipakai untuk cuaca
-  lat: -7.6,
-  lon: 110.95,
+  lat: -7.5306,
+  lon: 110.7615,
 };
 
 /**

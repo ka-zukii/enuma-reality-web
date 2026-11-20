@@ -19,6 +19,7 @@ import {
 import { OfficeScene } from "@/components/OfficeScene";
 import { VOfficeOverlay } from "@/components/hud/VOfficeOverlay";
 import { JoinWorkspaceModal } from "@/components/hud/JoinWorkspaceModal";
+import { RoomTransition } from "@/components/hud/RoomTransition";
 import {
   BUILDINGS,
   getBuilding,
@@ -35,6 +36,8 @@ const InteriorPage = lazy(() => import("@/pages/InteriorPage"));
 const DEFAULT_SPAWN: Vec3 = [0, 0, 3];
 // Popup tetap tampil sampai pemain menjauh sejauh margin ini (mencegah kedip)
 const LEAVE_MARGIN = 1.5;
+// Setelah pindah ruangan selesai, popup masuk gedung ditahan sebentar agar scene sempat stabil
+const PROMPT_SETTLE_MS = 1500;
 
 const EXTERIOR_CAMERA = { position: [0, 16, 22] as Vec3, fov: 42 };
 const INTERIOR_CAMERA = { position: [0, 9, 11] as Vec3, fov: 42 };
@@ -85,7 +88,7 @@ function BuildingPrompt({
       <div
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-[420px] rounded-3xl bg-white px-6 py-6 text-center shadow-2xl"
+        className="w-full max-w-105 rounded-3xl bg-white px-6 py-6 text-center shadow-2xl"
       >
         <img src="/logo-enuma.png" alt="" className="mx-auto h-12 w-12" />
         <h2 className="mt-3 text-xl font-extrabold text-slate-900">
@@ -138,7 +141,7 @@ function AppContent() {
     setStatus,
   } = useOfficeSocket(userId);
 
-    // Tampilan sebelum masuk (overview kota + modal nama)
+  // Tampilan sebelum masuk (overview kota + modal nama)
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [landingMenu, setLandingMenu] = useState<LandingMenuKey | null>(null);
   const [landingView, setLandingView] = useState("Beranda");
@@ -165,6 +168,11 @@ function AppContent() {
     location.pathname.match(/^\/gedung\/([^/]+)\/?$/)?.[1] ?? null;
   const currentBuilding = getBuilding(urlBuildingKey);
 
+  /** Nama tujuan untuk overlay pindah ruangan */
+  const transitionDestination = urlBuildingKey
+    ? (currentBuilding?.interior.name ?? currentBuilding?.name ?? "Gedung")
+    : "Kota Enuma";
+
   const exteriorRoomId =
     workspace?.rooms.find((r) => !r.buildingKey)?.id ??
     workspace?.rooms[0]?.id ??
@@ -176,10 +184,16 @@ function AppContent() {
   const shownBuildingRef = useRef<BuildingConfig | null>(null);
   const dismissedKeyRef = useRef<string | null>(null);
   const syncingToRef = useRef<string | null | undefined>(undefined);
+  /** true selama pindah ruangan berlangsung, popup tidak boleh muncul */
+  const transitioningRef = useRef(false);
+  /** Popup ditahan sampai waktu ini (ms epoch), setelah pindah ruangan selesai */
+  const promptBlockedUntilRef = useRef(0);
 
   // Dipanggil dari OfficeScene dengan throttle
   const handleLocalPosition = useCallback((pos: Vec3) => {
     if (urlKeyRef.current) return; // popup hanya di kota
+    if (transitioningRef.current) return; // sedang pindah ruangan
+    if (Date.now() < promptBlockedUntilRef.current) return; // masih dalam masa tenang
 
     const shown = shownBuildingRef.current;
     if (
@@ -200,7 +214,7 @@ function AppContent() {
       dismissedKeyRef.current = null; // sudah menjauh, popup boleh muncul lagi
       return;
     }
-    if (near.key === dismissedKeyRef.current) return; // sudah ditolak ("Nanti")
+    if (near.key === dismissedKeyRef.current) return; // sudah ditolak atau baru ditinggalkan
 
     shownBuildingRef.current = near;
     setPromptBuilding(near);
@@ -218,6 +232,18 @@ function AppContent() {
     setPromptBuilding(null);
   };
 
+  /**
+   * Keluar dari gedung. Pintu yang ditinggalkan ditandai SEBELUM navigasi,
+   * supaya scene kota yang baru muncul tidak langsung memunculkan popup di pintu yang sama.
+   */
+  const handleExitBuilding = () => {
+    const left = getBuilding(activeBuildingKey) ?? currentBuilding;
+    dismissedKeyRef.current = left?.key ?? null;
+    shownBuildingRef.current = null;
+    setPromptBuilding(null);
+    navigate("/");
+  };
+
   /** Tombol "Masuk Sekarang" di panel detail gedung */
   const handleEnterSelectedBuilding = () => {
     if (!selectedBuilding) return;
@@ -233,6 +259,7 @@ function AppContent() {
     if (syncingToRef.current === urlBuildingKey) return;
 
     syncingToRef.current = urlBuildingKey;
+    transitioningRef.current = true;
     setTransitioning(true);
     setTransitionError(null);
 
@@ -261,6 +288,8 @@ function AppContent() {
         navigate("/", { replace: true });
       } finally {
         syncingToRef.current = undefined;
+        transitioningRef.current = false;
+        promptBlockedUntilRef.current = Date.now() + PROMPT_SETTLE_MS;
         setTransitioning(false);
       }
     };
@@ -289,7 +318,9 @@ function AppContent() {
       const t = e.target as HTMLElement | null;
       if (
         t &&
-        (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.isContentEditable)
       ) {
         return;
       }
@@ -302,12 +333,12 @@ function AppContent() {
 
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [isSignedIn, isChatFocused, showJoinModal]);  
+  }, [isSignedIn, isChatFocused, showJoinModal]);
 
   // Setiap masuk atau keluar mode jelajah, kamera kembali ke default (ikuti karakter)
   useEffect(() => {
     setCameraMode("follow");
-  }, [userId]);  
+  }, [userId]);
 
   if (loading) {
     return (
@@ -410,7 +441,7 @@ function AppContent() {
                     onZoneChange={setCurrentZone}
                     cameraMode={cameraMode}
                     isChatFocused={isChatFocused || showJoinModal}
-                    onExit={() => navigate("/")}
+                    onExit={handleExitBuilding}
                   />
                 )}
               </Suspense>
@@ -419,12 +450,12 @@ function AppContent() {
         />
       </Routes>
 
-      {/* Indikator pindah ruangan */}
-      {transitioning && (
-        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-100/70 backdrop-blur-sm text-xs font-semibold text-slate-600">
-          Memuat ruangan...
-        </div>
-      )}
+      {/* Animasi pindah ruangan: pintu menutup, muat, lalu terbuka */}
+      <RoomTransition
+        active={transitioning}
+        destination={transitionDestination}
+        toCity={!urlBuildingKey}
+      />
 
       {/* Banner error (koneksi atau pindah ruangan) */}
       {(error || transitionError) && (
@@ -437,8 +468,8 @@ function AppContent() {
       {/* Tombol keluar gedung, di tengah atas agar tidak menabrak chat */}
       {urlBuildingKey && isInteriorReady && (
         <button
-          onClick={() => navigate("/")}
-          className="absolute top-[72px] left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/95 border border-white/80 shadow-lg text-xs font-bold text-slate-700 hover:text-blue-600 transition cursor-pointer"
+          onClick={handleExitBuilding}
+          className="absolute top-18 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/95 border border-white/80 shadow-lg text-xs font-bold text-slate-700 hover:text-blue-600 transition cursor-pointer"
         >
           <LogOut className="w-3.5 h-3.5" />
           Keluar ke Kota

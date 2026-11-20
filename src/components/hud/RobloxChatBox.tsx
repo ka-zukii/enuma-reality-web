@@ -110,7 +110,7 @@ export function RobloxChatBox({
   }
 
   return (
-    <div className="pointer-events-auto w-full overflow-hidden rounded-2xl bg-white/95 text-slate-800 shadow-xl backdrop-blur">
+    <div className="pointer-events-auto flex min-h-0 w-full flex-col overflow-hidden rounded-2xl bg-white/95 text-slate-800 shadow-xl backdrop-blur">
       <div className="flex items-center justify-between px-3 pt-3">
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
@@ -159,7 +159,7 @@ export function RobloxChatBox({
               setPrivateTargetId(e.target.value);
               setWarn(false);
             }}
-            className="flex-1 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs outline-none focus:border-blue-500"
+            className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs outline-none focus:border-blue-500"
           >
             <option value="">Pilih pemain ({remotePlayers.length})</option>
             {remotePlayers.map((p) => (
@@ -171,7 +171,8 @@ export function RobloxChatBox({
         </div>
       )}
 
-      <div className="mt-2 h-40 space-y-1 overflow-y-auto px-3 text-xs leading-relaxed">
+      {/* Tinggi pesan mengikuti layar, sehingga tidak menutupi terlalu banyak tampilan di HP */}
+      <div className="mt-2 h-[min(10rem,28dvh)] space-y-1 overflow-y-auto px-3 text-xs leading-relaxed">
         {filtered.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-slate-400">
             <span>Belum ada pesan.</span>
@@ -187,7 +188,7 @@ export function RobloxChatBox({
           filtered.map((m) => {
             const isMe = m.senderId === currentUserId;
             return (
-              <p key={m.id} className="break-words">
+              <p key={m.id} className="wrap-break-word">
                 <span
                   className={`font-bold ${
                     isMe ? "text-emerald-600" : "text-blue-600"

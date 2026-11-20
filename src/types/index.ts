@@ -1,6 +1,9 @@
 export type PlayerStatus = "LIVE" | "PAGI" | "STANDUP" | "ISTIRAHAT" | "TAMU";
 export type MemberRole = "OWNER" | "ADMIN" | "MEMBER" | "GUEST";
 
+/** Sinkron dengan server. "reconnecting": socket putus, avatar ditahan server (grace period). */
+export type ConnectionState = "connected" | "reconnecting";
+
 export interface ChatMessage {
   id: string;
   channel: "PROXIMITY" | "GLOBAL" | "PRIVATE";
@@ -24,6 +27,7 @@ export interface RemotePlayer {
   role: MemberRole;
   jobTitle: string | null;
   status: PlayerStatus;
+  connectionState?: ConnectionState;
 }
 
 export interface WorkspaceRoom {
@@ -40,9 +44,10 @@ export interface WorkspaceData {
   /** Hanya dikirim server untuk member */
   inviteCode?: string;
   isAuto?: boolean;
+  /** Pemain online dan kursi yang sedang dicadangkan */
   onlineCount?: number;
   maxCapacity?: number;
-  /** Jumlah member terdaftar, dari Prisma `_count` */
+  /** Jumlah member terdaftar (termasuk yang sedang offline), dari Prisma `_count` */
   _count?: { members: number };
   rooms: WorkspaceRoom[];
 }

@@ -63,8 +63,6 @@ const WEATHER_ICON: Record<WeatherKind, LucideIcon> = {
   storm: CloudLightning,
 };
 
-
-
 const pillClass =
   "flex h-9 items-center rounded-full bg-white/95 shadow-lg backdrop-blur";
 
@@ -125,8 +123,9 @@ export function VOfficeOverlay({
     return () => window.removeEventListener("keydown", onKey, true);
   }, [chatOpen, onFocusChatChange]);
 
+  // Menu terbuka ke atas di HP (tombol ada di bawah), dan ke bawah di layar lebar
   const menuBox =
-    "absolute right-0 top-full z-10 mt-2 w-52 rounded-2xl bg-white p-2 shadow-2xl";
+    "absolute right-0 bottom-full z-10 mb-2 w-52 rounded-2xl bg-white p-2 shadow-2xl sm:bottom-auto sm:top-full sm:mb-0 sm:mt-2";
 
   return (
     <div className="pointer-events-none absolute inset-0 z-30 select-none overflow-hidden font-sans">
@@ -138,9 +137,10 @@ export function VOfficeOverlay({
         />
       )}
 
-      {/* ============ KIRI ATAS: tombol chat, server, cuaca, panel chat ============ */}
-      <div className="pointer-events-auto absolute left-3 top-3 flex w-[min(340px,calc(100vw-1.5rem))] flex-col gap-2 sm:left-4 sm:top-4">
-        <div className="flex items-center gap-2">
+      {/* ============ KIRI ATAS: server, online, cuaca, obrolan ============ */}
+      {/* Tinggi dibatasi agar tidak keluar dari layar saat layar pendek */}
+      <div className="pointer-events-auto absolute left-2 top-2 flex max-h-[calc(100dvh-1rem)] w-[min(340px,calc(100vw-1rem))] flex-col gap-2 sm:left-4 sm:top-4 sm:max-h-[calc(100dvh-2rem)]">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setChatOpen((v) => !v)}
             aria-label="Buka obrolan"
@@ -154,28 +154,35 @@ export function VOfficeOverlay({
             <MessageSquare className="h-4 w-4" />
           </button>
 
-          <div className={`${pillClass} gap-1 p-1`}>
+          <div className={`${pillClass} min-w-0 gap-1 p-1`}>
             <button
               onClick={onOpenWorkspaceModal}
               title={workspaceName ? `Server: ${workspaceName}` : "Server"}
-              className="group flex h-full items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 pl-2.5 pr-3.5 text-xs font-bold text-white shadow-md shadow-blue-600/30 ring-1 ring-white/20 transition hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg active:scale-95 cursor-pointer"
+              className="group flex h-full shrink-0 items-center gap-1.5 rounded-full bg-linear-to-r from-blue-600 to-indigo-600 pl-2.5 pr-3 text-xs font-bold text-white shadow-md shadow-blue-600/30 ring-1 ring-white/20 transition hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg active:scale-95 cursor-pointer"
             >
               <Server className="h-3.5 w-3.5 transition group-hover:scale-110" />
               Server
             </button>
-            <span className="flex items-center gap-1.5 px-2 text-xs font-semibold text-slate-700">
-              <span className="relative flex h-2 w-2">
+            <span className="flex min-w-0 items-center gap-1.5 px-2 text-xs font-semibold text-slate-700">
+              <span className="relative flex h-2 w-2 shrink-0">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
               </span>
-              {onlineCount} Orang Online
+              <span className="truncate sm:hidden">{onlineCount} online</span>
+              <span className="hidden truncate sm:inline">
+                {onlineCount} Orang Online
+              </span>
             </span>
           </div>
 
           {weather && (
-            <div className={`${pillClass} gap-1.5 px-3 text-xs font-semibold text-slate-700`}>
-              <WeatherIcon className="h-4 w-4 text-blue-600" />
-              {weather.temp}°C
+            <div className="flex shrink-0 flex-col">
+              <div
+                className={`${pillClass} gap-1.5 px-3 text-xs font-semibold text-slate-700`}
+              >
+                <WeatherIcon className="h-4 w-4 text-blue-600" />
+                {weather.temp}°C
+              </div>
             </div>
           )}
         </div>
@@ -192,8 +199,8 @@ export function VOfficeOverlay({
         />
       </div>
 
-      {/* ============ TENGAH ATAS: lencana lokasi ============ */}
-      <div className="pointer-events-none absolute left-1/2 top-3 hidden -translate-x-1/2 md:block sm:top-4">
+      {/* ============ TENGAH ATAS: lencana lokasi (hanya layar lebar) ============ */}
+      <div className="pointer-events-none absolute left-1/2 top-3 hidden -translate-x-1/2 lg:block sm:top-4">
         <div className="flex items-center gap-2.5 rounded-full bg-white/95 py-1.5 pl-2 pr-5 shadow-lg backdrop-blur">
           <img src="/logo-enuma.png" alt="" className="h-8 w-8" />
           <div className="leading-tight">
@@ -207,20 +214,24 @@ export function VOfficeOverlay({
         </div>
       </div>
 
-      {/* ============ KANAN ATAS: status, sudut pandang, bantuan, keluar ============ */}
-      <div className="pointer-events-auto absolute right-3 top-3 flex items-start gap-2 sm:right-4 sm:top-4">
-        {/* Status */}
-        <div className="relative hidden sm:block">
+      {/*
+        ============ KANAN BAWAH (HP) / KANAN ATAS (sm ke atas) ============
+        Di HP dipindah ke bawah agar tidak bertabrakan dengan HUD kiri atas.
+      */}
+      <div className="pointer-events-auto absolute bottom-2 right-2 flex items-center gap-2 sm:bottom-auto sm:right-4 sm:top-4">
+        {/* Status: di HP hanya titik warna, di layar lebar lengkap dengan label */}
+        <div className="relative">
           <button
             onClick={() => setMenu(menu === "status" ? null : "status")}
+            aria-label={`Status: ${statusMeta.label}`}
             aria-expanded={menu === "status"}
             className={`${pillClass} gap-1.5 px-3 text-xs font-bold text-slate-800 cursor-pointer`}
           >
             <span
-              className="h-2 w-2 rounded-full"
+              className="h-2.5 w-2.5 rounded-full sm:h-2 sm:w-2"
               style={{ backgroundColor: statusMeta.color }}
             />
-            {statusMeta.label}
+            <span className="hidden sm:inline">{statusMeta.label}</span>
             <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
           </button>
           {menu === "status" && (
@@ -233,7 +244,7 @@ export function VOfficeOverlay({
                     onStatusChange(opt.value);
                     setMenu(null);
                   }}
-                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100 cursor-pointer"
+                  className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100 cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
                     <span
@@ -277,7 +288,7 @@ export function VOfficeOverlay({
                       onCameraModeChange(opt.value);
                       setMenu(null);
                     }}
-                    className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-bold transition cursor-pointer ${
+                    className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-bold transition cursor-pointer ${
                       active
                         ? "bg-slate-900 text-white"
                         : "text-slate-800 hover:bg-slate-100"
@@ -309,16 +320,17 @@ export function VOfficeOverlay({
         {/* Keluar */}
         <button
           onClick={() => setShowExit(true)}
-          className={`${pillClass} gap-1.5 border-2 border-transparent px-4 text-sm font-bold text-slate-800 transition hover:border-blue-600 hover:text-blue-700 cursor-pointer`}
+          aria-label="Keluar"
+          className={`${pillClass} gap-1.5 border-2 border-transparent px-3 text-sm font-bold text-slate-800 transition hover:border-blue-600 hover:text-blue-700 sm:px-4 cursor-pointer`}
         >
-          Keluar
+          <span className="hidden sm:inline">Keluar</span>
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      {/* ============ DETAIL GEDUNG (dari repo, tidak diubah fungsinya) ============ */}
+      {/* ============ DETAIL GEDUNG ============ */}
       {selectedBuilding && (
-        <div className="pointer-events-auto absolute left-1/2 top-1/2 z-40 flex w-[90vw] max-w-[340px] -translate-x-1/2 -translate-y-1/2 flex-col gap-3 rounded-3xl border border-white bg-white/95 p-4 shadow-2xl backdrop-blur-xl sm:p-5">
+        <div className="pointer-events-auto absolute left-1/2 top-1/2 z-40 flex max-h-[90dvh] w-[90vw] max-w-85 -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-y-auto rounded-3xl border border-white bg-white/95 p-4 shadow-2xl backdrop-blur-xl sm:p-5">
           <div className="flex items-start justify-between">
             <div>
               <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-800">
@@ -348,16 +360,16 @@ export function VOfficeOverlay({
             </span>
           </div>
 
-          <div className="mt-1 flex gap-2">
+          <div className="mt-1 flex flex-col gap-2 sm:flex-row">
             <button
               onClick={() => onEnterBuilding?.()}
-              className="flex-1 rounded-xl bg-blue-600 py-2 text-xs font-bold text-white shadow-md transition hover:bg-blue-700 cursor-pointer"
+              className="flex-1 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-blue-700 cursor-pointer"
             >
               Masuk Sekarang
             </button>
             <button
               onClick={onCloseBuildingDetail}
-              className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 cursor-pointer"
+              className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 cursor-pointer"
             >
               Tutup
             </button>
@@ -365,8 +377,8 @@ export function VOfficeOverlay({
         </div>
       )}
 
-      {/* ============ BAWAH TENGAH: bantuan kontrol ============ */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-4 hidden justify-center sm:flex">
+      {/* ============ BAWAH TENGAH: bantuan kontrol (layar sedang ke atas) ============ */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-4 hidden justify-center md:flex">
         <AnimatePresence>
           {showHelp && (
             <motion.div
@@ -374,9 +386,9 @@ export function VOfficeOverlay({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 12 }}
               transition={{ duration: 0.25 }}
-              className="pointer-events-auto rounded-2xl bg-white/95 px-5 py-3.5 text-center shadow-xl backdrop-blur"
+              className="pointer-events-auto max-w-[min(92vw,460px)] rounded-2xl bg-white/95 px-5 py-3.5 text-center shadow-xl backdrop-blur"
             >
-              <div className="flex items-center justify-center gap-1.5">
+              <div className="flex flex-wrap items-center justify-center gap-1.5">
                 <Key>W</Key>
                 <Key>A</Key>
                 <Key>S</Key>
@@ -393,10 +405,10 @@ export function VOfficeOverlay({
                 </span>{" "}
                 Seret mouse untuk menoleh.
               </p>
-              <p className="mt-1.5 flex items-center justify-center gap-1.5 text-xs text-slate-700">
+              <p className="mt-1.5 flex flex-wrap items-center justify-center gap-1.5 text-xs text-slate-700">
                 <Key>C</Key> ganti kamera
               </p>
-              <p className="mt-1.5 flex items-center justify-center gap-1.5 text-xs text-slate-700">
+              <p className="mt-1.5 flex flex-wrap items-center justify-center gap-1.5 text-xs text-slate-700">
                 <Key>/</Key> buka chat
                 <Key>Esc</Key> tutup chat
               </p>

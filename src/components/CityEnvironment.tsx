@@ -6,6 +6,7 @@ import {
   StreetLamp,
   ParkBench,
 } from "@/components/CityProps";
+import { CityLife, Sway } from "@/components/city/CityLife";
 
 interface CityEnvironmentProps {
   onBuildingSelect: (building: BuildingInfo) => void;
@@ -283,17 +284,33 @@ export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
       {/* ========================================================
           AREA TAMAN KOTA, BANGKU & PEPOHONAN ASRI
           ======================================================== */}
-      {/* Pepohonan di Sepanjang Jalur Pejalan Kaki & Taman */}
-      <LowPolyTree position={[3.5, 0, -12]} scale={1.8} />
-      <LowPolyTree position={[7, 0, -13]} scale={2.1} />
-      <LowPolyTree position={[3.5, 0, -1]} scale={1.7} />
-      <LowPolyTree position={[8.5, 0, 5]} scale={2.0} />
+      {/* Pepohonan di Sepanjang Jalur Pejalan Kaki & Taman (bergoyang pelan) */}
+      <Sway position={[3.5, 0, -12]} phase={0}>
+        <LowPolyTree position={[0, 0, 0]} scale={1.8} />
+      </Sway>
+      <Sway position={[7, 0, -13]} phase={1.7}>
+        <LowPolyTree position={[0, 0, 0]} scale={2.1} />
+      </Sway>
+      <Sway position={[3.5, 0, -1]} phase={3.1}>
+        <LowPolyTree position={[0, 0, 0]} scale={1.7} />
+      </Sway>
+      <Sway position={[8.5, 0, 5]} phase={4.4}>
+        <LowPolyTree position={[0, 0, 0]} scale={2.0} />
+      </Sway>
 
       {/* Pohon di Sudut-sudut Kota */}
-      <LowPolyTree position={[-28, 0, -14]} scale={2.2} />
-      <LowPolyTree position={[-28, 0, 6]} scale={2.0} />
-      <LowPolyTree position={[30, 0, -12]} scale={2.3} />
-      <LowPolyTree position={[30, 0, 6]} scale={2.1} />
+      <Sway position={[-28, 0, -14]} phase={0.8}>
+        <LowPolyTree position={[0, 0, 0]} scale={2.2} />
+      </Sway>
+      <Sway position={[-28, 0, 6]} phase={2.4}>
+        <LowPolyTree position={[0, 0, 0]} scale={2.0} />
+      </Sway>
+      <Sway position={[30, 0, -12]} phase={3.9}>
+        <LowPolyTree position={[0, 0, 0]} scale={2.3} />
+      </Sway>
+      <Sway position={[30, 0, 6]} phase={5.2}>
+        <LowPolyTree position={[0, 0, 0]} scale={2.1} />
+      </Sway>
 
       {/* Bangku Taman Menghadap Jalur Utama */}
       <ParkBench position={[6, 0, 8]} rotation={[0, Math.PI, 0]} />
@@ -310,26 +327,13 @@ export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
       ))}
 
       {/* ========================================================
-          KENDARAAN / MOBIL PROPORSIONAL
+          KENDARAAN / MOBIL PARKIR
+          (mobil yang melaju di jalan dikelola CityLife)
           ======================================================== */}
-      {/* Mobil Sedan Merah di Seberang Jalan Utara */}
-      <LowPolyCar
-        position={[16, 0, -22]}
-        rotation={[0, 0, 0]}
-        color="#ef4444"
-      />
-
       {/* Mobil Putih & Biru Terparkir di Area Parkir */}
       <LowPolyCar position={[14, 0, 23]} rotation={[0, 0, 0]} color="#f8fafc" />
       <LowPolyCar position={[22, 0, 23]} rotation={[0, 0, 0]} color="#2563eb" />
       <LowPolyCar position={[28, 0, 23]} rotation={[0, 0, 0]} color="#0f172a" />
-
-      {/* Mobil Hitam Melaju di Jalan Raya Selatan */}
-      <LowPolyCar
-        position={[-14, 0, 14]}
-        rotation={[0, -Math.PI / 2, 0]}
-        color="#1e293b"
-      />
 
       {/* ========================================================
           LAMPU JALAN KELILING KOTA
@@ -340,6 +344,11 @@ export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
       <StreetLamp position={[-18, 0, -18]} />
       <StreetLamp position={[-2, 0, -18]} />
       <StreetLamp position={[14, 0, -18]} />
+
+      {/* ========================================================
+          KEHIDUPAN KOTA: pejalan kaki, lalu lintas, burung, awan, cahaya
+          ======================================================== */}
+      <CityLife />
     </group>
   );
 }

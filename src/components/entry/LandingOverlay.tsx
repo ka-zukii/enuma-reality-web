@@ -34,29 +34,36 @@ export function LandingOverlay({
   };
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-30 select-none p-3 sm:p-8">
+    <div className="pointer-events-none absolute inset-0 z-30 select-none p-2.5 sm:p-6 lg:p-8">
       <SidePanel />
 
-      <div className="relative flex items-start justify-between gap-3">
+      {/* Di HP: logo di atas, navbar di bawahnya. Di layar lebar: sejajar. */}
+      <div className="relative flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         {/* Logo & tagline */}
-        <div className="pointer-events-auto flex items-center gap-3 rounded-[28px] bg-white/95 px-4 py-2.5 shadow-xl backdrop-blur">
-          <img src="/logo-enuma.png" alt="Enuma" className="h-11 w-11" />
-          <div className="leading-tight">
-            <p className="text-lg font-extrabold text-slate-900">
+        <div className="pointer-events-auto flex w-fit max-w-full items-center gap-2.5 rounded-[28px] bg-white/95 px-3 py-2 shadow-xl backdrop-blur sm:gap-3 sm:px-4 sm:py-2.5">
+          <img
+            src="/logo-enuma.png"
+            alt="Enuma"
+            className="h-9 w-9 sm:h-11 sm:w-11"
+          />
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-base font-extrabold text-slate-900 sm:text-lg">
               Enuma <span className="text-blue-600">Technology</span>
             </p>
-            <p className="text-xs text-slate-500">Software · IoT · Robotics</p>
+            <p className="hidden text-xs text-slate-500 sm:block">
+              Software · IoT · Robotics
+            </p>
           </div>
         </div>
 
-        {/* Navbar */}
-        <nav className="pointer-events-auto relative flex items-center gap-1 rounded-[28px] bg-white/95 p-2 shadow-xl backdrop-blur xl:absolute xl:left-1/2 xl:top-0 xl:-translate-x-1/2">
+        {/* Navbar: di HP bisa digeser ke samping jika tidak muat */}
+        <nav className="pointer-events-auto flex max-w-full items-center gap-1 overflow-x-auto rounded-[28px] bg-white/95 p-1.5 shadow-xl backdrop-blur sm:p-2 xl:absolute xl:left-1/2 xl:top-0 xl:-translate-x-1/2 scrollbar-none [&::-webkit-scrollbar]:hidden">
           {MENU_ITEMS.map((item) => (
             <button
               key={item.key}
               onClick={() => handleMenu(item.key)}
               aria-pressed={activeMenu === item.key}
-              className={`hidden rounded-full px-4 py-2.5 text-sm font-bold transition cursor-pointer md:block ${
+              className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold transition cursor-pointer sm:px-4 sm:py-2.5 sm:text-sm ${
                 activeMenu === item.key
                   ? "bg-blue-600 text-white"
                   : "text-slate-800 hover:bg-blue-600 hover:text-white"
@@ -68,10 +75,11 @@ export function LandingOverlay({
 
           <button
             onClick={onExplore}
-            className="flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-blue-900 px-5 py-2.5 text-sm font-bold text-white shadow-md transition cursor-pointer hover:brightness-110"
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-linear-to-r from-blue-600 to-blue-900 px-3.5 py-2 text-xs font-bold text-white shadow-md transition cursor-pointer hover:brightness-110 sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm"
           >
             <Compass className="h-4 w-4" />
-            Jelajahi Sekarang
+            <span className="sm:hidden">Jelajahi</span>
+            <span className="hidden sm:inline">Jelajahi Sekarang</span>
           </button>
         </nav>
       </div>

@@ -9,3 +9,20 @@
     @apply bg-slate-950 text-slate-100 antialiased overflow-hidden select-none font-sans;
   }
 }
+
+/*
+ * Tinggi layar mengikuti area yang benar-benar terlihat.
+ * Di browser HP, 100vh lebih tinggi dari layar karena address bar,
+ * sehingga bagian bawah HUD tertutup. dvh menyesuaikan diri dengan address bar.
+ * Aturan di luar @layer punya prioritas di atas utilitas Tailwind,
+ * jadi cukup menimpa h-screen dan min-h-screen.
+ */
+.h-screen {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.min-h-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+}

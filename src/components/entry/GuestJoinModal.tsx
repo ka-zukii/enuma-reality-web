@@ -42,7 +42,7 @@ export function GuestJoinModal({ onClose, onLogin }: GuestJoinModalProps) {
 
   if (showLogin) {
     return <LoginModal onBack={() => setShowLogin(false)} onClose={onClose} />;
-  }  
+  }
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-[2px] select-text">
@@ -50,7 +50,7 @@ export function GuestJoinModal({ onClose, onLogin }: GuestJoinModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="guest-join-title"
-        className="relative w-full max-w-[420px] rounded-[22px] bg-white p-5 sm:p-6 shadow-2xl text-slate-900"
+        className="relative max-h-[calc(100dvh-2rem)] w-full max-w-105 overflow-y-auto rounded-[22px] bg-white p-5 sm:p-6 shadow-2xl text-slate-900"
       >
         <div className="flex items-center justify-between">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-600">

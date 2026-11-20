@@ -213,13 +213,22 @@ export function LoginModal({ onBack, onClose }: LoginModalProps) {
       return;
     }
 
-    // Bila konfirmasi email aktif, session belum ada sampai email dikonfirmasi
-    if (!data.session) {
-      switchMode("login");
-      setNotice("Akun dibuat. Cek email Anda untuk konfirmasi, lalu masuk.");
-      setLoading(false);
-    }
-    // Bila session langsung ada, App otomatis masuk ke mode jelajah
+    // Session langsung ada (konfirmasi email nonaktif): App otomatis masuk ke mode jelajah
+    if (data.session) return;
+
+    // Session belum ada: coba masuk langsung dengan akun yang baru dibuat.
+    // Bila konfirmasi email aktif, langkah ini gagal, dan pengguna tetap di formulir daftar.
+    const { data: signedIn, error: signInError } =
+      await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+    if (signedIn?.session && !signInError) return;
+
+    setNotice(
+      "Akun berhasil dibuat. Konfirmasi email Anda, lalu tekan Daftar atau Masuk untuk melanjutkan.",
+    );
+    setLoading(false);
   };
 
   const signInWithGoogle = async () => {
@@ -245,7 +254,7 @@ export function LoginModal({ onBack, onClose }: LoginModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="login-title"
-        className="relative max-h-[calc(100vh-2rem)] w-full max-w-[420px] overflow-y-auto rounded-[22px] bg-white p-5 sm:p-6 shadow-2xl text-slate-900"
+        className="relative max-h-[calc(100vh-2rem)] w-full max-w-105 overflow-y-auto rounded-[22px] bg-white p-5 sm:p-6 shadow-2xl text-slate-900"
       >
         <div className="flex items-center justify-between">
           <button

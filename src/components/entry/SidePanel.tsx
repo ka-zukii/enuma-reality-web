@@ -161,7 +161,7 @@ export function SidePanel({
   const [memberId, setMemberId] = useState<string | null>(null);
 
   return (
-    <div className="pointer-events-auto absolute left-3 top-[116px] hidden max-h-[calc(100vh-148px)] w-[336px] flex-col gap-3 overflow-y-auto p-1 sm:left-6 sm:flex">
+    <div className="pointer-events-auto absolute left-3 top-28 hidden max-h-[calc(100dvh-132px)] w-[min(336px,calc(100vw-1.5rem))] flex-col gap-3 overflow-y-auto p-1 sm:left-6 sm:flex">
       <InfoCard now={now} weather={weather} onlineCount={onlineCount} />
 
       <CollapsibleCard title="Ruangan">

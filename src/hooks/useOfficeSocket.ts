@@ -4,6 +4,7 @@ import { authFetch } from "@/lib/api";
 import { createSocketConnection } from "@/lib/socket";
 import type {
   ChatMessage,
+  ConnectionState,
   MemberRole,
   PlayerStatus,
   RemotePlayer,
@@ -16,6 +17,7 @@ export interface PlayerTickData {
   rotationY: number;
   animation: "idle" | "walk";
   zone: string;
+  connectionState?: ConnectionState;
 }
 
 type JoinMode = "auto" | "code";
@@ -37,6 +39,18 @@ const MAX_AUTO_ATTEMPTS = 3;
 const ROOM_JOIN_TIMEOUT_MS = 8000;
 const BUBBLE_DURATION_MS = 6000;
 
+/** Heartbeat dikirim tiap 20 detik selama pemain aktif (server mengeluarkan setelah 180 detik tanpa aktivitas) */
+const HEARTBEAT_MS = 20_000;
+/** Dianggap aktif bila ada input dalam jangka waktu ini */
+const ACTIVE_WINDOW_MS = 20_000;
+/** Jeda minimum antar percobaan join ulang setelah dikeluarkan karena tidak aktif */
+const REJOIN_COOLDOWN_MS = 3_000;
+
+const IDLE_MESSAGE =
+  "Kamu dikeluarkan dari server karena tidak aktif. Gerakkan karakter untuk kembali.";
+const RECONNECT_MESSAGE = "Koneksi terputus, sedang menyambung ulang...";
+const FULL_REJOIN_MESSAGE = "Server sudah penuh, tidak bisa kembali sekarang.";
+
 interface PendingJoin {
   resolve: () => void;
   reject: (err: Error) => void;
@@ -47,7 +61,7 @@ interface PendingJoin {
  * Koneksi ke server kantor.
  *
  * Hook ini hanya bergantung pada `userId`, bukan pada objek session:
- * - Refresh token Supabase (sekitar tiap jam) TIDAK memicu join ulang atau reconnect.
+ * - Refresh token Supabase TIDAK memicu join ulang atau reconnect.
  * - Socket dan request HTTP mengambil token terbaru lewat `getAccessToken()`.
  * - Sign-out (`userId` = null) memutus socket dan mengosongkan semua state.
  */
@@ -85,6 +99,15 @@ export function useOfficeSocket(userId: string | null) {
     null,
   );
 
+  /** Posisi & rotasi terakhir kita dari room:tick. Dipakai saat join ulang agar avatar tidak kembali ke spawn. */
+  const selfTickRef = useRef<PlayerTickData | null>(null);
+  /** userId pemain lain yang sedang reconnecting */
+  const reconnectingIdsRef = useRef<Set<string>>(new Set());
+  /** True saat server sudah mengeluarkan kita karena tidak aktif */
+  const idleRef = useRef(false);
+  const lastInputAtRef = useRef(Date.now());
+  const lastRejoinAtRef = useRef(0);
+
   const clearAllBubbleTimers = useCallback(() => {
     Object.values(bubbleTimersRef.current).forEach((timer) =>
       clearTimeout(timer),
@@ -117,6 +140,9 @@ export function useOfficeSocket(userId: string | null) {
       setIsConnected(false);
       clearAllBubbleTimers();
       remoteTicksRef.current = {};
+      selfTickRef.current = null;
+      reconnectingIdsRef.current.clear();
+      idleRef.current = false;
     },
     [settlePendingJoin, clearAllBubbleTimers],
   );
@@ -191,26 +217,51 @@ export function useOfficeSocket(userId: string | null) {
       socketRef.current = newSocket;
       setSocket(newSocket);
 
-      // Menentukan perilaku server:full (gagal saat masuk pertama, atau saat pindah ruangan)
+      // Sudah berhasil masuk room minimal sekali. Dipakai untuk menentukan perilaku server:full.
       let joined = false;
+
+      /** Catat status koneksi pemain lain. Hanya memicu re-render saat status berubah. */
+      const syncConnectionState = (id: string, state: ConnectionState) => {
+        const isReconnecting = state === "reconnecting";
+        const wasReconnecting = reconnectingIdsRef.current.has(id);
+        if (isReconnecting === wasReconnecting) return;
+
+        if (isReconnecting) reconnectingIdsRef.current.add(id);
+        else reconnectingIdsRef.current.delete(id);
+
+        setRemotePlayers((prev) =>
+          prev.map((p) =>
+            p.userId === id ? { ...p, connectionState: state } : p,
+          ),
+        );
+      };
 
       newSocket.on("connect", () => {
         setIsConnected(true);
         setError(null);
-        // Setiap connect (termasuk auto-reconnect) kembali ke ruangan aktif
+        // Setiap connect (termasuk auto-reconnect) kembali ke ruangan aktif.
+        // Posisi terakhir ikut dikirim, sehingga avatar tetap di tempat semula.
+        const self = selfTickRef.current;
         newSocket.emit("room:join", {
           workspaceId: targetWorkspace.id,
           roomId: currentRoomIdRef.current ?? exteriorRoom.id,
-          mode,
+          // Server sudah mengenal kita setelah pernah masuk, jadi tidak perlu mode auto lagi
+          mode: joined ? "code" : mode,
+          currentPosition: self?.position,
+          rotationY: self?.rotationY,
         });
       });
 
       newSocket.on("server:full", () => {
         if (joined) {
-          // Pindah ruangan gagal, socket tetap hidup dan ditangani di enterRoom
-          settlePendingJoin(
-            new Error("Ruangan ini sudah penuh (maks 15 pemain)."),
-          );
+          // Pindah ruangan atau join ulang gagal. Socket tetap hidup.
+          if (pendingJoinRef.current) {
+            settlePendingJoin(
+              new Error("Ruangan ini sudah penuh (maks 15 pemain)."),
+            );
+          } else {
+            setError(FULL_REJOIN_MESSAGE);
+          }
           return;
         }
 
@@ -231,17 +282,25 @@ export function useOfficeSocket(userId: string | null) {
 
       newSocket.on("connect_error", (err) => {
         setIsConnected(false);
-        setError(`Socket Error: ${err.message}`);
+        setError(joined ? RECONNECT_MESSAGE : `Socket Error: ${err.message}`);
       });
 
       newSocket.on("disconnect", (reason) => {
         console.warn("[Client Socket Disconnected]:", reason);
         setIsConnected(false);
+        if (reason === "io server disconnect") {
+          // Server yang memutus, socket.io tidak otomatis menyambung ulang
+          newSocket.connect();
+          return;
+        }
+        if (reason !== "io client disconnect") setError(RECONNECT_MESSAGE);
       });
 
       newSocket.on("room:state", (players: RemotePlayer[]) => {
         joined = true;
+        idleRef.current = false;
         settlePendingJoin();
+        setError(null);
 
         // Simpan role dan jabatan kita sendiri untuk overhead label
         const me = players.find((p) => p.userId === uid);
@@ -262,20 +321,26 @@ export function useOfficeSocket(userId: string | null) {
           ).values(),
         );
 
+        const reconnecting = new Set<string>();
         others.forEach((p) => {
+          const state = p.connectionState ?? "connected";
+          if (state === "reconnecting") reconnecting.add(p.userId);
           remoteTicksRef.current[p.userId] = {
             position: p.position,
             rotationY: p.rotationY,
             animation: p.animation,
             zone: p.zone,
+            connectionState: state,
           };
         });
+        reconnectingIdsRef.current = reconnecting;
         setRemotePlayers(others);
       });
 
       newSocket.on("player:joined", (player: RemotePlayer) => {
         if (player.userId === uid) return;
         const prevTick = remoteTicksRef.current[player.userId];
+        const state = player.connectionState ?? "connected";
         // Pertahankan posisi terakhir jika pemain hanya reconnect/update socket
         const keepPos = prevTick?.position || player.position;
         remoteTicksRef.current[player.userId] = {
@@ -283,32 +348,62 @@ export function useOfficeSocket(userId: string | null) {
           rotationY: player.rotationY ?? prevTick?.rotationY ?? 0,
           animation: player.animation ?? prevTick?.animation ?? "idle",
           zone: player.zone ?? prevTick?.zone ?? "jalan-utama",
+          connectionState: state,
         };
+        syncConnectionState(player.userId, state);
         setRemotePlayers((prev) => [
           ...prev.filter((p) => p.userId !== player.userId),
           player,
         ]);
       });
 
+      // Pemain lain putus koneksi: avatarnya ditahan server, tampilkan dalam mode redup
+      newSocket.on(
+        "player:reconnecting",
+        ({ userId: id }: { userId: string }) => {
+          if (id === uid) return;
+          syncConnectionState(id, "reconnecting");
+        },
+      );
+
       // Update ref secara langsung tanpa memicu React re-render
       newSocket.on(
         "room:tick",
         (ticks: Array<PlayerTickData & { userId: string }>) => {
           for (const t of ticks) {
-            if (t.userId === uid) continue;
+            const state = t.connectionState ?? "connected";
+
+            if (t.userId === uid) {
+              selfTickRef.current = {
+                position: t.position,
+                rotationY: t.rotationY,
+                animation: t.animation,
+                zone: t.zone,
+              };
+              continue;
+            }
+
             remoteTicksRef.current[t.userId] = {
               position: t.position,
               rotationY: t.rotationY,
               animation: t.animation,
               zone: t.zone,
+              connectionState: state,
             };
+            syncConnectionState(t.userId, state);
           }
         },
       );
 
       newSocket.on(
         "player:left",
-        ({ userId: leftId, socketId }: { userId: string; socketId?: string }) => {
+        ({
+          userId: leftId,
+          socketId,
+        }: {
+          userId: string;
+          socketId?: string;
+        }) => {
           // Hanya hapus jika socket yang disconnect memang socket aktif pemain tersebut
           setRemotePlayers((prev) => {
             const target = prev.find((p) => p.userId === leftId);
@@ -316,14 +411,31 @@ export function useOfficeSocket(userId: string | null) {
               return prev;
             }
             delete remoteTicksRef.current[leftId];
+            reconnectingIdsRef.current.delete(leftId);
             return prev.filter((p) => p.userId !== leftId);
           });
         },
       );
 
+      // Server mengeluarkan kita karena tidak aktif. Kita sudah tidak ada di room.
+      newSocket.on("player:idle", () => {
+        idleRef.current = true;
+        // Tidak lagi menerima data room, jadi data pemain lain sudah tidak valid
+        remoteTicksRef.current = {};
+        reconnectingIdsRef.current.clear();
+        setRemotePlayers([]);
+        setError(IDLE_MESSAGE);
+      });
+
       newSocket.on(
         "player:status",
-        ({ userId: changedId, status }: { userId: string; status: PlayerStatus }) => {
+        ({
+          userId: changedId,
+          status,
+        }: {
+          userId: string;
+          status: PlayerStatus;
+        }) => {
           if (changedId === uid) {
             setSelfInfo((prev) => (prev ? { ...prev, status } : prev));
             return;
@@ -417,6 +529,8 @@ export function useOfficeSocket(userId: string | null) {
       const previousRoomId = currentRoomIdRef.current;
       currentRoomIdRef.current = roomId;
       remoteTicksRef.current = {};
+      selfTickRef.current = null;
+      reconnectingIdsRef.current.clear();
       setRemotePlayers([]);
 
       return new Promise<void>((resolve, reject) => {
@@ -496,6 +610,79 @@ export function useOfficeSocket(userId: string | null) {
       disconnectSocket("Koneksi ditutup");
     };
   }, [userId, quickJoin, disconnectSocket, resetState]);
+
+  /* ----------------------------------------------------------------------
+   * Aktivitas pemain: heartbeat saat aktif, join ulang saat kembali dari idle.
+   * Server mengeluarkan pemain yang tidak mengirim aktivitas selama 3 menit.
+   * ---------------------------------------------------------------------- */
+  useEffect(() => {
+    if (!userId) return;
+
+    lastInputAtRef.current = Date.now();
+
+    const sendRejoin = (s: Socket) => {
+      const ws = workspaceRef.current;
+      const roomId = currentRoomIdRef.current;
+      if (!ws || !roomId) return;
+
+      lastRejoinAtRef.current = Date.now();
+      const self = selfTickRef.current;
+      s.emit("room:join", {
+        workspaceId: ws.id,
+        roomId,
+        mode: "code",
+        currentPosition: self?.position,
+        rotationY: self?.rotationY,
+      });
+    };
+
+    const rejoinIfIdle = () => {
+      const s = socketRef.current;
+      if (!idleRef.current || !s?.connected) return;
+      if (Date.now() - lastRejoinAtRef.current < REJOIN_COOLDOWN_MS) return;
+      sendRejoin(s);
+    };
+
+    const onActivity = () => {
+      lastInputAtRef.current = Date.now();
+      rejoinIfIdle();
+    };
+
+    const ACTIVITY_EVENTS = [
+      "mousemove",
+      "keydown",
+      "pointerdown",
+      "touchstart",
+    ] as const;
+    ACTIVITY_EVENTS.forEach((ev) =>
+      window.addEventListener(ev, onActivity, { passive: true }),
+    );
+
+    const timer = window.setInterval(() => {
+      // Tab tidak terlihat: biarkan server menghitung tidak aktif
+      if (document.visibilityState !== "visible") return;
+
+      const s = socketRef.current;
+      if (!s?.connected) return;
+
+      const recentlyActive =
+        Date.now() - lastInputAtRef.current <= ACTIVE_WINDOW_MS;
+      if (!recentlyActive) return;
+
+      if (idleRef.current) {
+        rejoinIfIdle();
+        return;
+      }
+      s.emit("player:heartbeat");
+    }, HEARTBEAT_MS);
+
+    return () => {
+      ACTIVITY_EVENTS.forEach((ev) =>
+        window.removeEventListener(ev, onActivity),
+      );
+      window.clearInterval(timer);
+    };
+  }, [userId]);
 
   const joinByInviteCode = useCallback(
     async (inviteCode: string) => {

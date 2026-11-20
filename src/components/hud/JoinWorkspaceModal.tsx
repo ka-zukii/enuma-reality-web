@@ -80,7 +80,7 @@ export function JoinWorkspaceModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-150 select-none font-sans">
-      <div className="w-full max-w-md rounded-3xl bg-white/95 backdrop-blur-xl border border-white/80 shadow-2xl p-5 sm:p-6 flex flex-col gap-4 text-slate-800">
+      <div className="w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl bg-white/95 backdrop-blur-xl border border-white/80 shadow-2xl p-5 sm:p-6 flex flex-col gap-4 text-slate-800">
         {/* Header */}
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <div className="flex items-center gap-2">
@@ -111,7 +111,7 @@ export function JoinWorkspaceModal({
             placeholder="Masukkan kode server..."
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-blue-500 shadow-inner"
+            className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-blue-500 shadow-inner"
           />
           <button
             type="submit"
@@ -130,7 +130,7 @@ export function JoinWorkspaceModal({
         </form>
 
         {/* Daftar server */}
-        <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
+        <div className="flex flex-col gap-2 max-h-[min(15rem,35dvh)] overflow-y-auto pr-1">
           <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
             Server Kamu ({workspaces.length})
           </span>
@@ -177,7 +177,7 @@ export function JoinWorkspaceModal({
                       )}
                     </div>
 
-                    <div className="flex items-center gap-3 text-[10px] text-slate-500">
+                    <div className="flex items-center gap-3 flex-wrap text-[10px] text-slate-500">
                       <span
                         className={`flex items-center gap-1 font-semibold ${
                           isFull ? "text-rose-500" : "text-emerald-600"
@@ -230,7 +230,7 @@ export function JoinWorkspaceModal({
                       {!isFull && <ArrowRight className="w-3 h-3" />}
                     </button>
                   ) : (
-                    <span className="text-[11px] font-bold text-blue-600 px-2 py-1">
+                    <span className="text-[11px] font-bold text-blue-600 px-2 py-1 shrink-0">
                       Di Sini
                     </span>
                   )}

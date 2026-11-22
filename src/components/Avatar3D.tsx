@@ -221,6 +221,9 @@ function Face({ look }: { look: Look }) {
 // ---------------------------------------------------------------
 // Komponen utama
 // ---------------------------------------------------------------
+/** Skala tinggi avatar (1 = ukuran asli ±1,8 m) */
+const AVATAR_SCALE = 0.8;
+
 export function Avatar3D({
   userId,
   fullName,
@@ -332,6 +335,7 @@ export function Avatar3D({
     <group
       ref={groupRef}
       position={initialPosition}
+      scale={AVATAR_SCALE}
       visible={!(isLocal && isFirstPerson)}
     >
       {/* Bayangan di lantai */}

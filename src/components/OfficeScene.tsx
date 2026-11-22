@@ -22,6 +22,7 @@ import {
   type Box,
   type BuildingInfo,
   type InteriorConfig,
+  type StairsConfig,
   type Vec3,
 } from "@/config/buildings";
 import type { CameraMode } from "@/config/camera";
@@ -47,6 +48,8 @@ interface OfficeSceneProps {
   cameraMode: CameraMode;
   /** Mode pengamat (sebelum masuk): tanpa avatar lokal dan tanpa kontrol gerak */
   spectator?: boolean;
+  /** Posisi awal avatar di kota (mis. pintu gedung yang baru ditinggalkan) */
+  initialPosition?: Vec3;
   /** Jika diisi, scene menjadi interior gedung, bukan kota */
   interior?: {
     config: InteriorConfig;
@@ -70,6 +73,42 @@ function clamp(value: number, min: number, max: number) {
 
 function distXZ(a: Vec3, b: Vec3) {
   return Math.hypot(a[0] - b[0], a[2] - b[2]);
+}
+
+function inBox(x: number, z: number, b: Box): boolean {
+  return x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ;
+}
+
+/**
+ * Tinggi lantai tangga di titik (x, z): proyeksi ke segmen `path` yang paling dekat,
+ * lalu dibagi panjang total path supaya naik sebanding dengan jarak.
+ */
+function stairHeight(stairs: StairsConfig, x: number, z: number): number {
+  const p = stairs.path;
+  let total = 0;
+  const cum: number[] = [0];
+  for (let i = 1; i < p.length; i++) {
+    total += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
+    cum.push(total);
+  }
+  let bestDist = Infinity;
+  let bestProgress = 0;
+  for (let i = 1; i < p.length; i++) {
+    const [ax, az] = p[i - 1];
+    const [bx, bz] = p[i];
+    const dx = bx - ax;
+    const dz = bz - az;
+    const len2 = dx * dx + dz * dz || 1;
+    const u = clamp(((x - ax) * dx + (z - az) * dz) / len2, 0, 1);
+    const px = ax + dx * u;
+    const pz = az + dz * u;
+    const d = Math.hypot(x - px, z - pz);
+    if (d < bestDist) {
+      bestDist = d;
+      bestProgress = cum[i - 1] + Math.hypot(dx, dz) * u;
+    }
+  }
+  return total > 0 ? (bestProgress / total) * stairs.height : 0;
 }
 
 /** Titik (x, z) dianggap menabrak jika berada di dalam kotak yang sudah diperbesar radius avatar */
@@ -119,12 +158,15 @@ export function OfficeScene({
   onLocalPositionChange,
   cameraMode,
   spectator = false,
+  initialPosition,
   interior,
 }: OfficeSceneProps) {
   const isInterior = interior !== undefined;
   const bounds = interior ? interior.config.bounds : CITY_BOUNDS;
   const obstacles = interior ? interior.config.obstacles : CITY_OBSTACLES;
-  const spawn: Vec3 = interior ? interior.config.spawn : DEFAULT_SPAWN;
+  const spawn: Vec3 = interior
+    ? interior.config.spawn
+    : (initialPosition ?? DEFAULT_SPAWN);
 
   const localStateRef = useRef<PlayerTickData>({
     position: [spawn[0], spawn[1], spawn[2]],
@@ -137,6 +179,9 @@ export function OfficeScene({
   const interiorRef = useRef(interior);
   interiorRef.current = interior;
   const exitTriggeredRef = useRef(false);
+  /** Tinggi lantai terakhir di luar tangga (0 = lantai dasar, >0 = lantai atas) */
+  const elevationRef = useRef(0);
+  const onStairsRef = useRef(false);
 
   const controlsRef = useRef<any>(null);
   const keysPressed = useRef<Record<string, boolean>>({});
@@ -245,7 +290,7 @@ export function OfficeScene({
     if (isMoving) {
       moveDir.normalize();
 
-      const [px, , pz] = current.position;
+      const [px, py, pz] = current.position;
       const stepX = moveDir.x * MOVE_SPEED * delta;
       const stepZ = moveDir.z * MOVE_SPEED * delta;
 
@@ -266,8 +311,23 @@ export function OfficeScene({
         if (zone !== current.zone) onZoneChange(zone);
       }
 
+      // Ketinggian: di atas tangga naik sesuai posisi X, di luar tangga ikut lantai terakhir
+      const stairs = interiorRef.current?.config.stairs;
+      const onStairs = !!stairs && inBox(nextX, nextZ, stairs.box);
+      let nextY: number;
+      if (stairs && onStairs) {
+        nextY = stairHeight(stairs, nextX, nextZ);
+      } else {
+        // Baru keluar dari tangga: tentukan lantai dari tinggi terakhir di tangga
+        if (stairs && onStairsRef.current) {
+          elevationRef.current = py >= stairs.height / 2 ? stairs.height : 0;
+        }
+        nextY = elevationRef.current;
+      }
+      onStairsRef.current = onStairs;
+
       localStateRef.current = {
-        position: [nextX, 0, nextZ],
+        position: [nextX, nextY, nextZ],
         rotationY: nextRot,
         animation: didMove ? "walk" : "idle",
         zone,
@@ -326,7 +386,11 @@ export function OfficeScene({
       if (cameraMode === "follow" || enterFP) {
         // Ketinggian mata karakter manusia ~1.56m
         const targetEyeY = enterFP ? 1.56 : 1.2;
-        camTargetVec.current.set(cur.position[0], targetEyeY, cur.position[2]);
+        camTargetVec.current.set(
+          cur.position[0],
+          cur.position[1] + targetEyeY,
+          cur.position[2],
+        );
 
         const prevTarget = prevTargetVec.current.copy(controls.target);
         controls.target.lerp(camTargetVec.current, 1 - Math.exp(-14 * delta));
@@ -343,7 +407,7 @@ export function OfficeScene({
     emitTimer.current += delta;
     if (socket && emitTimer.current >= EMIT_INTERVAL) {
       emitTimer.current = 0;
-      const snapshot = `${cur.position[0]},${cur.position[2]},${cur.rotationY},${cur.animation},${cur.zone}`;
+      const snapshot = `${cur.position[0]},${cur.position[1]},${cur.position[2]},${cur.rotationY},${cur.animation},${cur.zone}`;
       if (snapshot !== lastSentRef.current) {
         lastSentRef.current = snapshot;
         socket.emit("player:move", cur);

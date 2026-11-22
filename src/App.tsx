@@ -188,6 +188,8 @@ function AppContent() {
   const transitioningRef = useRef(false);
   /** Popup ditahan sampai waktu ini (ms epoch), setelah pindah ruangan selesai */
   const promptBlockedUntilRef = useRef(0);
+  /** Posisi kota tempat pemain keluar dari gedung (pintu gedung tersebut) */
+  const cityReturnPosRef = useRef<Vec3>(DEFAULT_SPAWN);
 
   // Dipanggil dari OfficeScene dengan throttle
   const handleLocalPosition = useCallback((pos: Vec3) => {
@@ -239,6 +241,8 @@ function AppContent() {
   const handleExitBuilding = () => {
     const left = getBuilding(activeBuildingKey) ?? currentBuilding;
     dismissedKeyRef.current = left?.key ?? null;
+    // Kota di-mount ulang setelah keluar, jadi posisi pintu disimpan di sini
+    cityReturnPosRef.current = left?.entrance ?? DEFAULT_SPAWN;
     shownBuildingRef.current = null;
     setPromptBuilding(null);
     navigate("/");
@@ -418,6 +422,7 @@ function AppContent() {
                 bubbles={bubbles}
                 onZoneChange={setCurrentZone}
                 isChatFocused={isChatFocused || showJoinModal}
+                initialPosition={cityReturnPosRef.current}
                 onBuildingSelect={setSelectedBuilding}
                 onLocalPositionChange={handleLocalPosition}
                 cameraMode={cameraMode}

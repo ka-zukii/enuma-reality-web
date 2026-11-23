@@ -74,6 +74,7 @@ export interface InteriorConfig {
   obstacles: Box[];
   /** Tangga ke lantai atas, jika ada */
   stairs?: StairsConfig;
+  buildingKey: BuildingKey;
 }
 
 export interface BuildingConfig {
@@ -115,6 +116,7 @@ export const BUILDINGS: BuildingConfig[] = [
     entranceRadius: 3,
     interior: {
       name: "Warung Madura",
+      buildingKey: "warung-madura",
       accent: "#f97316",
       model: "/buildings/warung-madura-modern.glb",
       // Ukuran model ±8.3 x 10.3 m, pintu di sisi depan (z ≈ -0.5 asli)
@@ -125,14 +127,14 @@ export const BUILDINGS: BuildingConfig[] = [
       exit: { position: [0.46, 0, 5.6], radius: 1.0 },
       obstacles: [
         // Dinding (dari mesh Wall di .glb, sudah dipotong di pintu)
-        { minX: -4.15, maxX: -4.00, minZ: -5.17, maxZ: 5.13 },
+        { minX: -4.15, maxX: -4.0, minZ: -5.17, maxZ: 5.13 },
         { minX: -4.15, maxX: -1.05, minZ: 4.98, maxZ: 5.13 },
         { minX: -4.15, maxX: 4.15, minZ: -5.17, maxZ: -5.02 },
         // Sekat tengah, dibuka celah 2 m di tengah agar ruangan belakang bisa dimasuki
-        { minX: -4.00, maxX: -1.00, minZ: 0.38, maxZ: 0.53 },
-        { minX: 1.00, maxX: 4.00, minZ: 0.38, maxZ: 0.53 },
+        { minX: -4.0, maxX: -1.0, minZ: 0.38, maxZ: 0.53 },
+        { minX: 1.0, maxX: 4.0, minZ: 0.38, maxZ: 0.53 },
         { minX: 1.05, maxX: 4.15, minZ: 4.98, maxZ: 5.13 },
-        { minX: 4.00, maxX: 4.15, minZ: -5.17, maxZ: 5.13 },
+        { minX: 4.0, maxX: 4.15, minZ: -5.17, maxZ: 5.13 },
       ],
     },
   },
@@ -145,6 +147,7 @@ export const BUILDINGS: BuildingConfig[] = [
     interior: {
       name: "Indomart",
       accent: "#dc2626",
+      buildingKey: "indomart",
       model: "/buildings/indomaret.glb",
       // Ukuran asli ±30 x 20 m. Fasad (pintu geser) ada di sisi timur (+X),
       // sehingga model diputar -90° agar pintu menghadap +Z.
@@ -156,19 +159,19 @@ export const BUILDINGS: BuildingConfig[] = [
       obstacles: [
         // Dinding (dari mesh Wall di .glb, sudah dipotong di pintu)
         { minX: -9.97, maxX: -9.82, minZ: -14.98, maxZ: 15.02 },
-        { minX: -9.97, maxX: -2.00, minZ: 14.87, maxZ: 15.02 },
+        { minX: -9.97, maxX: -2.0, minZ: 14.87, maxZ: 15.02 },
         { minX: -9.97, maxX: 10.03, minZ: -14.98, maxZ: -14.83 },
-        { minX: -9.82, maxX: -6.02, minZ: -10.00, maxZ: -9.85 },
-        { minX: -5.95, maxX: -5.80, minZ: -14.83, maxZ: -10.85 },
-        { minX: -5.73, maxX: 6.32, minZ: -10.00, maxZ: -9.85 },
-        { minX: 2.10, maxX: 10.03, minZ: 14.87, maxZ: 15.02 },
+        { minX: -9.82, maxX: -6.02, minZ: -10.0, maxZ: -9.85 },
+        { minX: -5.95, maxX: -5.8, minZ: -14.83, maxZ: -10.85 },
+        { minX: -5.73, maxX: 6.32, minZ: -10.0, maxZ: -9.85 },
+        { minX: 2.1, maxX: 10.03, minZ: 14.87, maxZ: 15.02 },
         { minX: 4.73, maxX: 4.88, minZ: -14.83, maxZ: -12.32 },
-        { minX: 4.73, maxX: 4.88, minZ: -12.47, maxZ: -10.00 },
+        { minX: 4.73, maxX: 4.88, minZ: -12.47, maxZ: -10.0 },
         { minX: 4.73, maxX: 6.45, minZ: -12.47, maxZ: -12.32 },
-        { minX: 7.30, maxX: 7.45, minZ: -14.83, maxZ: -12.54 },
+        { minX: 7.3, maxX: 7.45, minZ: -14.83, maxZ: -12.54 },
         { minX: 7.35, maxX: 7.41, minZ: -12.47, maxZ: -12.32 },
         { minX: 8.31, maxX: 9.88, minZ: -12.47, maxZ: -12.32 },
-        { minX: 8.42, maxX: 9.88, minZ: -10.00, maxZ: -9.85 },
+        { minX: 8.42, maxX: 9.88, minZ: -10.0, maxZ: -9.85 },
         { minX: 9.88, maxX: 10.03, minZ: -14.98, maxZ: 15.02 },
       ],
     },
@@ -182,6 +185,7 @@ export const BUILDINGS: BuildingConfig[] = [
     interior: {
       name: "Kantor Enuma Technology",
       accent: "#2563eb",
+      buildingKey: "enuma-hq",
       model: "/buildings/enuma_kantor.glb",
       // Pintu depan ada di dinding barat (x ≈ -9,81), di koordinat asli sekitar
       // (-9,81; -0,52), dengan dua jendela kaca di tiap sisi pintu. Model diputar
@@ -203,18 +207,18 @@ export const BUILDINGS: BuildingConfig[] = [
         { minX: -5.21, maxX: -0.26, minZ: 5.43, maxZ: 5.59 },
         { minX: -0.26, maxX: -0.11, minZ: -5.01, maxZ: -4.53 },
         { minX: -0.26, maxX: -0.11, minZ: -4.53, maxZ: -1.08 },
-        { minX: -0.26, maxX: -0.11, minZ: -0.07, maxZ: 0.10 },
-        { minX: -0.26, maxX: -0.11, minZ: 1.12, maxZ: 6.40 },
+        { minX: -0.26, maxX: -0.11, minZ: -0.07, maxZ: 0.1 },
+        { minX: -0.26, maxX: -0.11, minZ: 1.12, maxZ: 6.4 },
         // Sekat lobi dibuka di z 6,69 s.d. 7,9 agar bisa lewat ke ruangan dalam
         { minX: -0.26, maxX: -0.11, minZ: 7.9, maxZ: 9.55 },
-        { minX: -0.26, maxX: -0.10, minZ: 6.47, maxZ: 6.62 },
+        { minX: -0.26, maxX: -0.1, minZ: 6.47, maxZ: 6.62 },
         { minX: -0.22, maxX: 4.79, minZ: 9.62, maxZ: 9.77 },
         { minX: 0.86, maxX: 4.79, minZ: -5.23, maxZ: -5.08 },
         { minX: 0.92, maxX: 4.57, minZ: 6.47, maxZ: 6.62 },
         { minX: 2.62, maxX: 2.78, minZ: -11.08, maxZ: -10.74 },
         { minX: 2.64, maxX: 2.79, minZ: -8.57, maxZ: -8.05 },
-        { minX: 2.64, maxX: 4.64, minZ: -8.20, maxZ: -8.05 },
-        { minX: 2.86, maxX: 4.64, minZ: -9.70, maxZ: -9.55 },
+        { minX: 2.64, maxX: 4.64, minZ: -8.2, maxZ: -8.05 },
+        { minX: 2.86, maxX: 4.64, minZ: -9.7, maxZ: -9.55 },
         { minX: 4.64, maxX: 4.79, minZ: -11.23, maxZ: -5.23 },
         { minX: 4.64, maxX: 4.79, minZ: -5.23, maxZ: 5.51 },
         { minX: 4.64, maxX: 4.79, minZ: 6.52, maxZ: 9.77 },
@@ -230,6 +234,7 @@ export const BUILDINGS: BuildingConfig[] = [
     interior: {
       name: "Lunara Cafe",
       accent: "#f472b6",
+      buildingKey: "lunara-cafe",
       model: "/buildings/cafe.glb",
       // Ukuran ±25 x 15 m. Fasad ada di sisi timur (+X), model diputar -90°.
       // TODO: model punya lantai dua (tinggi ±8 m); tinggi kamera mungkin perlu disesuaikan.
@@ -243,17 +248,17 @@ export const BUILDINGS: BuildingConfig[] = [
         { minX: -7.49, maxX: -7.34, minZ: -12.52, maxZ: 12.48 },
         { minX: -7.49, maxX: -1.04, minZ: 12.33, maxZ: 12.48 },
         { minX: -7.49, maxX: 7.51, minZ: -12.52, maxZ: -12.37 },
-        { minX: -7.34, maxX: -6.55, minZ: -7.00, maxZ: -6.85 },
-        { minX: -7.34, maxX: -6.52, minZ: -11.00, maxZ: -10.85 },
+        { minX: -7.34, maxX: -6.55, minZ: -7.0, maxZ: -6.85 },
+        { minX: -7.34, maxX: -6.52, minZ: -11.0, maxZ: -10.85 },
         { minX: -7.34, maxX: -3.49, minZ: -9.07, maxZ: -8.92 },
         { minX: -7.34, maxX: -3.34, minZ: -5.56, maxZ: -5.41 },
         { minX: -7.34, maxX: 4.86, minZ: -5.43, maxZ: -5.28 },
-        { minX: -5.56, maxX: -5.40, minZ: -6.78, maxZ: -5.56 },
-        { minX: -5.55, maxX: -5.40, minZ: -12.37, maxZ: -11.07 },
-        { minX: -5.53, maxX: -5.46, minZ: -7.00, maxZ: -6.85 },
-        { minX: -5.50, maxX: -5.45, minZ: -11.00, maxZ: -10.85 },
-        { minX: -4.44, maxX: -3.49, minZ: -7.00, maxZ: -6.85 },
-        { minX: -4.43, maxX: -3.49, minZ: -11.00, maxZ: -10.85 },
+        { minX: -5.56, maxX: -5.4, minZ: -6.78, maxZ: -5.56 },
+        { minX: -5.55, maxX: -5.4, minZ: -12.37, maxZ: -11.07 },
+        { minX: -5.53, maxX: -5.46, minZ: -7.0, maxZ: -6.85 },
+        { minX: -5.5, maxX: -5.45, minZ: -11.0, maxZ: -10.85 },
+        { minX: -4.44, maxX: -3.49, minZ: -7.0, maxZ: -6.85 },
+        { minX: -4.43, maxX: -3.49, minZ: -11.0, maxZ: -10.85 },
         { minX: -3.49, maxX: -3.34, minZ: -12.37, maxZ: -10.47 },
         { minX: -3.49, maxX: -3.34, minZ: -9.46, maxZ: -8.46 },
         { minX: -3.49, maxX: -3.34, minZ: -7.45, maxZ: -5.41 },

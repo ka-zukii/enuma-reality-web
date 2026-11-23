@@ -1,130 +1,151 @@
 // src/lib/tramRuntime.ts
-import { LOOP_LENGTH, STATION_STOPS, loopPoint } from "@/config/railway";
+//
+// Trem TIDAK disimulasikan di client. Posisi trem dikirim server (event room:world)
+// sehingga semua pemain di room yang sama melihat trem di posisi yang sama.
+// Client menginterpolasi snapshot dari server, lalu menghitung posisi gerbong dan penumpang.
+import { loopPoint } from "@/config/railway";
+import { worldNowMs } from "@/lib/worldClock";
 
 export const TRAM = {
   carCount: 2,
-  carLength: 10.3,   // 4.68 m (model) x 2.2
+  carLength: 10.3, // 4.68 m (model) x 2.2
   carGap: 0.3,
-  halfWidth: 1.14,   // lebar sekitar 2.3 m
-  floorY: 0.6,       // sejajar dengan peron yang sudah dinaikkan (lihat langkah 5)
-  speed: 7,
-  accel: 1.5,        // trem berat, jadi perlu lebih lambat saat mengerem dan berangkat
+  halfWidth: 1.14, // lebar sekitar 2.3 m
+  floorY: 0.6, // sejajar dengan peron yang sudah dinaikkan
   walkSpeed: 2.5,
   wall: 0.2,
-  startOffset: 0,
 };
 
-/** Jarak antar pusat gerbong. */
+/** Jarak antar pusat gerbong (sepanjang rel). */
 export const CAR_SPACING = TRAM.carLength + TRAM.carGap;
-const STOP_OFFSET = ((TRAM.carCount - 1) * CAR_SPACING) / 2;
 
-const FRONT = TRAM.carLength / 2;                                    // ujung depan dari pusat kepala
-const REAR = (TRAM.carCount - 1) * CAR_SPACING + TRAM.carLength / 2; // ujung belakang dari pusat kepala
+const CAR_HALF = TRAM.carLength / 2;
+const FRONT = CAR_HALF; // ujung depan dari pusat kepala
+const REAR = (TRAM.carCount - 1) * CAR_SPACING + CAR_HALF; // ujung belakang dari pusat kepala
 
-type TramState = {
-  head: number;      // jarak tempuh kepala trem (tidak dibungkus)
-  v: number;         // kecepatan saat ini (unit/detik)
-  dwell: number;     // sisa waktu berhenti di stasiun (detik)
-  lastTime: number;  // mencegah langkah ganda dalam satu frame
-  pending: boolean;  // permintaan naik/turun dari tombol E
-  boarded: boolean;  // apakah pemain sedang di dalam trem
-  rx: number;        // posisi pemain di kabin (lokal, origin = pusat kepala)
-  rz: number;
+/* ---------- Status trem dari server ---------- */
+
+export interface TramSnapshot {
+  head: number; // jarak tempuh kepala trem (tidak dibungkus)
+  v: number; // kecepatan (m/s)
+  dwell: number; // sisa waktu berhenti di stasiun (detik)
+  t: number; // waktu server (ms) saat snapshot dihitung
+}
+
+/**
+ * Trem digambar sedikit di belakang waktu terkini. Dengan begitu ada snapshot
+ * di kedua sisi untuk diinterpolasi, dan jitter jaringan tidak terlihat.
+ */
+const RENDER_DELAY_MS = 150;
+/** Snapshot yang lebih tua dari ini dibuang dari buffer */
+const BUFFER_KEEP_MS = 2000;
+/** Batas ekstrapolasi jika snapshot terbaru belum datang */
+const MAX_EXTRAPOLATE_MS = 250;
+
+let buffer: TramSnapshot[] = [];
+
+const view = {
+  head: 0,
+  lastTime: -1, // mencegah hitung ulang dalam satu frame
 };
 
-export const tram: TramState = {
-  head: TRAM.startOffset,
-  v: 0,
-  dwell: 0,
-  lastTime: -1,
-  pending: false,
-  boarded: false,
-  rx: 0,
-  rz: 0,
-};
+/** Dipanggil setiap kali server mengirim room:world */
+export function applyTramSnapshot(s: TramSnapshot): void {
+  const last = buffer[buffer.length - 1];
+  if (last && s.t <= last.t) return;
+  buffer.push(s);
+  const cutoff = s.t - BUFFER_KEEP_MS;
+  while (buffer.length > 2 && buffer[0].t < cutoff) buffer.shift();
+}
 
-/** Jarak dari kepala trem ke stasiun berikutnya di depan (dan lama berhentinya). */
-function distToNextStop(head: number): { dist: number; dwell: number } {
-  let dist = Infinity;
-  let dwell = 0;
-  for (const st of STATION_STOPS) {
-    // Titik berhenti kepala = posisi stasiun + STOP_OFFSET
-    let d = (st.s + STOP_OFFSET - head) % LOOP_LENGTH;
-    if (d < 0) d += LOOP_LENGTH;
-    // Titik berhenti tepat di bawah kepala (baru ditinggalkan) dianggap satu putaran penuh
-    if (d < 1e-4) d = LOOP_LENGTH;
-    if (d < dist) {
-      dist = d;
-      dwell = st.dwell;
+/** Dipanggil saat pindah room / putus, supaya tidak memakai trem lama */
+export function resetTramSnapshot(): void {
+  buffer = [];
+  view.head = 0;
+  view.lastTime = -1;
+}
+
+/** Interpolasi Hermite antara dua snapshot: posisi dan kecepatan sama-sama halus. */
+function hermite(a: TramSnapshot, b: TramSnapshot, rt: number): number {
+  const span = b.t - a.t;
+  const u = (rt - a.t) / span;
+  const dt = span / 1000;
+  const m0 = a.v * dt;
+  const m1 = b.v * dt;
+  const u2 = u * u;
+  const u3 = u2 * u;
+  return (
+    (2 * u3 - 3 * u2 + 1) * a.head +
+    (u3 - 2 * u2 + u) * m0 +
+    (-2 * u3 + 3 * u2) * b.head +
+    (u3 - u2) * m1
+  );
+}
+
+/** Posisi kepala trem pada waktu render (waktu dunia dikurangi delay). */
+function estimateHead(): number {
+  const n = buffer.length;
+  if (n === 0) return view.head;
+
+  const rt = worldNowMs() - RENDER_DELAY_MS;
+  const first = buffer[0];
+  const last = buffer[n - 1];
+
+  if (rt <= first.t) return first.head;
+
+  if (rt >= last.t) {
+    // Paket berikutnya belum datang: lanjutkan dengan kecepatan terakhir
+    if (last.dwell > 0) return last.head;
+    const ahead = Math.min(rt - last.t, MAX_EXTRAPOLATE_MS) / 1000;
+    return last.head + last.v * ahead;
+  }
+
+  for (let i = n - 1; i > 0; i--) {
+    if (buffer[i - 1].t <= rt) {
+      return hermite(buffer[i - 1], buffer[i], rt);
     }
   }
-  return { dist, dwell };
-}
-
-const STOP_EPS = 0.05;
-
-/**
- * Maju satu langkah dengan profil kecepatan halus:
- * - mulai dari diam lalu naik perlahan sampai kecepatan jelajah,
- * - mengerem tepat sebelum stasiun, lalu berhenti di titiknya,
- * - setelah dwell, berangkat lagi dari diam.
- * Dipanggil dari Tram (visual) dan OfficeScene (pemain). Guard `lastTime`
- * memastikan hanya berjalan sekali per frame.
- */
-export function stepTram(time: number, delta: number) {
-  if (time === tram.lastTime) return;
-  tram.lastTime = time;
-
-  const dt = Math.min(delta, 1 / 30);
-
-  if (tram.dwell > 0) {
-    tram.dwell = Math.max(0, tram.dwell - dt);
-    tram.v = 0;
-    return;
-  }
-
-  const { dist, dwell } = distToNextStop(tram.head);
-
-  // Kecepatan terbesar yang masih bisa direm tepat di stasiun
-  const vTarget = Math.min(TRAM.speed, Math.sqrt(2 * TRAM.accel * dist));
-
-  // Ubah kecepatan secara bertahap (bukan langsung)
-  if (tram.v < vTarget) {
-    tram.v = Math.min(vTarget, tram.v + TRAM.accel * dt);
-  } else {
-    tram.v = Math.max(vTarget, tram.v - TRAM.accel * dt);
-  }
-
-  const step = tram.v * dt;
-
-  // Sampai di stasiun: kunci posisinya dan mulai berhenti
-  if (step >= dist || (dist - step < STOP_EPS && tram.v < 1)) {
-    tram.head += dist;
-    tram.v = 0;
-    tram.dwell = dwell;
-  } else {
-    tram.head += step;
-  }
+  return first.head;
 }
 
 /**
- * Posisi (x, z) dan heading yang halus di jarak `s`.
- * Heading dihitung dari dua titik di kedua sisi, bukan dari satu segmen,
- * sehingga tidak ada loncatan rotasi saat melewati titik sudut belokan.
+ * Perbarui posisi trem untuk frame ini. Aman dipanggil berkali-kali dalam satu frame
+ * (dari Tram, OfficeScene, atau Avatar3D); hanya dihitung sekali.
  */
-export function poseAt(s: number): { x: number; z: number; angle: number } {
-  const h = 0.6;
-  const c = loopPoint(s);
-  const a = loopPoint(s - h);
-  const b = loopPoint(s + h);
+export function stepTramView(time: number): void {
+  if (time === view.lastTime) return;
+  view.lastTime = time;
+  view.head = estimateHead();
+}
+
+export function getTramHead(): number {
+  return view.head;
+}
+
+/** true jika trem sedang berhenti di stasiun (saat itu pemain boleh naik/turun) */
+export function isTramStopped(): boolean {
+  const last = buffer[buffer.length - 1];
+  return !!last && last.dwell > 0;
+}
+
+/* ---------- Geometri gerbong ---------- */
+
+/**
+ * Pose (pusat & arah) gerbong ke-`i` (0 = kepala).
+ * Ujung depan dan belakang gerbong ditempatkan tepat di rel, lalu pusatnya diambil
+ * di tengah kedua ujung itu. Dengan begitu bodi gerbong mengikuti lengkung rel,
+ * dan tidak menyerong keluar seperti jika hanya pusatnya yang ada di rel.
+ */
+export function carPose(i: number): { x: number; z: number; angle: number } {
+  const center = view.head - i * CAR_SPACING;
+  const front = loopPoint(center + CAR_HALF);
+  const back = loopPoint(center - CAR_HALF);
   return {
-    x: c.x,
-    z: c.z,
-    angle: Math.atan2(b.x - a.x, b.z - a.z),
+    x: (front.x + back.x) / 2,
+    z: (front.z + back.z) / 2,
+    angle: Math.atan2(front.x - back.x, front.z - back.z),
   };
 }
-
-/* ---------- Konversi koordinat (dunia <-> lokal trem) ---------- */
 
 function toLocal(x: number, z: number, ox: number, oz: number, a: number) {
   const dx = x - ox;
@@ -135,89 +156,158 @@ function toLocal(x: number, z: number, ox: number, oz: number, a: number) {
   };
 }
 
-function toWorld(lx: number, lz: number, ox: number, oz: number, a: number): [number, number] {
+function toWorld(
+  lx: number,
+  lz: number,
+  ox: number,
+  oz: number,
+  a: number,
+): [number, number] {
   return [
     ox + lx * Math.cos(a) + lz * Math.sin(a),
     oz - lx * Math.sin(a) + lz * Math.cos(a),
   ];
 }
 
-function inCabin(lx: number, lz: number) {
-  return (
-    Math.abs(lx) <= TRAM.halfWidth - TRAM.wall &&
-    lz <= FRONT - TRAM.wall &&
-    lz >= -REAR + TRAM.wall
-  );
+/**
+ * Posisi penumpang disimpan sebagai `rz` = jarak dari pusat kepala sepanjang trem
+ * (positif = depan). Gerbong yang memuat penumpang ditentukan dari `rz`.
+ */
+function carIndexFor(rz: number): number {
+  const i = Math.round(-rz / CAR_SPACING);
+  return Math.max(0, Math.min(TRAM.carCount - 1, i));
 }
 
-export type RideResult = {
-  /** true jika pemain sedang di dalam trem */
-  riding: boolean;
-  /** Posisi (x, z) pemain di dunia jika perlu diset; null jika tidak ada perubahan */
-  pos: [number, number] | null;
-};
+/** Posisi dunia penumpang dari (rx, rz), memakai gerbong yang memuatnya. */
+function riderWorld(rx: number, rz: number): [number, number] {
+  const i = carIndexFor(rz);
+  const cp = carPose(i);
+  // Di dalam gerbong ke-i, titik asal lokalnya adalah pusat gerbong itu
+  const lz = rz + i * CAR_SPACING;
+  return toWorld(rx, lz, cp.x, cp.z, cp.angle);
+}
 
 /**
- * Dipanggil setiap frame dari OfficeScene.
- * - `player`: posisi pemain saat ini (x, z) di dunia.
- * - `want`: arah jalan pemain di dunia (x, z) yang sudah dinormalisasi, atau null jika diam.
+ * Posisi dunia penumpang lain yang sedang naik.
+ * Dipakai di client lain, sehingga penumpang ikut bergerak bersama bodi gerbong.
  */
-export function updateRider(
-  dt: number,
-  player: [number, number],
-  want: [number, number] | null
-): RideResult {
-  const pose = poseAt(tram.head);
-  const a = pose.angle;
-  const ox = pose.x;
-  const oz = pose.z;
-  const stopped = tram.dwell > 0;
+export function riderWorldPos(rx: number, rz: number): [number, number] {
+  return riderWorld(rx, rz);
+}
 
-  // Tombol E ditekan
-  if (tram.pending) {
-    tram.pending = false;
+/* ---------- Naik / turun / berjalan di dalam kabin ---------- */
 
-    if (!tram.boarded && stopped) {
-      const { lx, lz } = toLocal(player[0], player[1], ox, oz, a);
-      if (inCabin(lx, lz)) {
-        tram.boarded = true;
-        tram.rx = lx;
-        tram.rz = lz;
-      }
-    } else if (tram.boarded && stopped) {
-      // Turun di sisi kabin tempat pemain berdiri
-      tram.boarded = false;
-      const side = tram.rx >= 0 ? 1 : -1;
-      const [x, z] = toWorld(side * (TRAM.halfWidth + 1), tram.rz, ox, oz, a);
-      return { riding: false, pos: [x, z] };
+/** Jarak maksimum dari sumbu rel agar pemain di peron masih bisa naik. */
+const DOOR_REACH = 4.5;
+
+/**
+ * Cari gerbong yang pintunya bisa dijangkau pemain di (x, z).
+ * Mengembalikan indeks gerbong dan posisi `rz`, atau null jika tidak ada.
+ */
+function findDoor(
+  x: number,
+  z: number,
+): { i: number; lx: number; rz: number } | null {
+  for (let i = 0; i < TRAM.carCount; i++) {
+    const cp = carPose(i);
+    const { lx, lz } = toLocal(x, z, cp.x, cp.z, cp.angle);
+    if (Math.abs(lx) <= DOOR_REACH && Math.abs(lz) <= CAR_HALF - TRAM.wall) {
+      return { i, lx, rz: lz - i * CAR_SPACING };
     }
   }
-
-  if (!tram.boarded) return { riding: false, pos: null };
-
-  // Pemain bisa berjalan di dalam kabin
-  if (want) {
-    const s = TRAM.walkSpeed * dt;
-    const dlx = (want[0] * Math.cos(a) - want[1] * Math.sin(a)) * s;
-    const dlz = (want[0] * Math.sin(a) + want[1] * Math.cos(a)) * s;
-
-    const maxX = TRAM.halfWidth - TRAM.wall;
-    tram.rx = Math.max(-maxX, Math.min(maxX, tram.rx + dlx));
-    tram.rz = Math.max(-REAR + TRAM.wall, Math.min(FRONT - TRAM.wall, tram.rz + dlz));
-  }
-
-  const [x, z] = toWorld(tram.rx, tram.rz, ox, oz, a);
-  return { riding: true, pos: [x, z] };
+  return null;
 }
+
+/** Dipakai untuk petunjuk "Tekan E untuk naik" di layar. */
+export function isNearTramDoor(x: number, z: number): boolean {
+  return findDoor(x, z) !== null;
+}
+
+let boardRequested = false;
 
 /** Pasang listener tombol E. Kembalikan fungsi untuk melepasnya. */
 export function installTramKey(): () => void {
   const onKey = (e: KeyboardEvent) => {
     if (e.code !== "KeyE" || e.repeat) return;
     const t = e.target as HTMLElement | null;
-    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-    tram.pending = true;
+    if (
+      t &&
+      (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)
+    )
+      return;
+    boardRequested = true;
   };
   window.addEventListener("keydown", onKey);
   return () => window.removeEventListener("keydown", onKey);
+}
+
+/** Status naik trem milik pemain lokal. */
+export interface RiderState {
+  riding: boolean;
+  rx: number; // posisi lateral di kabin
+  rz: number; // posisi sepanjang trem, relatif ke pusat kepala
+}
+
+export interface RideResult {
+  riding: boolean;
+  pos: [number, number];
+}
+
+/**
+ * Dipanggil setiap frame dari OfficeScene (setelah stepTramView).
+ * - `player`: posisi pemain saat ini (x, z) di dunia.
+ * - `want`: arah jalan pemain (x, z) yang sudah dinormalisasi, atau null jika diam.
+ * Mengembalikan posisi dunia jika pemain sedang di trem (atau baru turun), null jika di luar.
+ */
+export function updateRider(
+  dt: number,
+  player: [number, number],
+  want: [number, number] | null,
+  rider: RiderState,
+): RideResult | null {
+  const stopped = isTramStopped();
+  const maxX = TRAM.halfWidth - TRAM.wall;
+
+  if (boardRequested) {
+    boardRequested = false;
+
+    if (stopped) {
+      if (!rider.riding) {
+        const door = findDoor(player[0], player[1]);
+        if (door) {
+          // Masuk lewat pintu di sisi pemain berdiri
+          rider.riding = true;
+          rider.rx = door.lx >= 0 ? maxX : -maxX;
+          rider.rz = door.rz;
+        }
+      } else {
+        // Turun di sisi kabin tempat pemain berdiri
+        rider.riding = false;
+        const side = rider.rx >= 0 ? 1 : -1;
+        const [x, z] = riderWorld(side * (TRAM.halfWidth + 1), rider.rz);
+        return { riding: false, pos: [x, z] };
+      }
+    }
+  }
+
+  if (!rider.riding) return null;
+
+  if (want) {
+    // Arah jalan mengikuti gerbong tempat pemain berdiri, supaya benar di tikungan
+    const cp = carPose(carIndexFor(rider.rz));
+    const s = TRAM.walkSpeed * dt;
+    const dlx =
+      (want[0] * Math.cos(cp.angle) - want[1] * Math.sin(cp.angle)) * s;
+    const dlz =
+      (want[0] * Math.sin(cp.angle) + want[1] * Math.cos(cp.angle)) * s;
+
+    rider.rx = Math.max(-maxX, Math.min(maxX, rider.rx + dlx));
+    rider.rz = Math.max(
+      -REAR + TRAM.wall,
+      Math.min(FRONT - TRAM.wall, rider.rz + dlz),
+    );
+  }
+
+  const [x, z] = riderWorld(rider.rx, rider.rz);
+  return { riding: true, pos: [x, z] };
 }

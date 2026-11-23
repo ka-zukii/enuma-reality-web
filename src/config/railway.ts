@@ -153,3 +153,22 @@ export function loopPoint(s: number): LoopPoint {
     angle: Math.atan2(dx, dz),
   };
 }
+/**
+ * Peron stasiun. Harus sama dengan posisi <TrainStation> di CityEnvironment.
+ * Peron ada di sisi selatan rel (z lebih kecil dari RAIL.halfZ).
+ */
+export const PLATFORM = {
+  x: 0,
+  z: 36.6,
+  halfX: 13,   // panjang peron 26 m
+  halfZ: 1.5,  // lebar peron 3 m
+  height: 0.6, // permukaan peron (sama dengan TRAM.floorY)
+} as const;
+
+/** Ketinggian permukaan lantai di (x, z): di atas peron = PLATFORM.height, selain itu tanah (0). */
+export function platformY(x: number, z: number): number {
+  return Math.abs(x - PLATFORM.x) <= PLATFORM.halfX &&
+    Math.abs(z - PLATFORM.z) <= PLATFORM.halfZ
+    ? PLATFORM.height
+    : 0;
+}

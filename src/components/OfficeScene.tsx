@@ -6,13 +6,14 @@ import {
   useState,
 } from "react";
 import { useFrame } from "@react-three/fiber";
-import { OrbitControls, Sky } from "@react-three/drei";
+import { Html, OrbitControls } from "@react-three/drei";
 import { type Socket } from "socket.io-client";
 import * as THREE from "three";
 import { Avatar3D } from "@/components/Avatar3D";
 import { GhostGroup } from "@/components/GhostGroup";
 import { CityEnvironment } from "@/components/CityEnvironment";
 import { InteriorEnvironment } from "@/components/interiors/InteriorEnvironment";
+import { WorldLighting } from "@/components/WorldLighting";
 import { type MemberRole, type PlayerStatus, type RemotePlayer } from "@/types";
 import { type PlayerTickData } from "@/hooks/useOfficeSocket";
 import {
@@ -29,9 +30,13 @@ import type { CameraMode } from "@/config/camera";
 import {
   TRAM,
   installTramKey,
-  stepTram,
+  isNearTramDoor,
+  isTramStopped,
+  stepTramView,
   updateRider,
+  type RiderState,
 } from "@/lib/tramRuntime";
+import { platformY } from "@/config/railway";
 
 interface OfficeSceneProps {
   socket: Socket | null;
@@ -189,6 +194,12 @@ export function OfficeScene({
   /** Tinggi lantai terakhir di luar tangga (0 = lantai dasar, >0 = lantai atas) */
   const elevationRef = useRef(0);
   const onStairsRef = useRef(false);
+  /** Status naik trem pemain lokal (koordinat di kabin) */
+  const riderRef = useRef<RiderState>({ riding: false, rx: 0, rz: 0 });
+  /** Petunjuk naik/turun trem di atas kepala pemain (diubah langsung, tanpa re-render) */
+  const tramHintGroupRef = useRef<THREE.Group>(null);
+  const tramHintTextRef = useRef<HTMLDivElement>(null);
+  const lastHintRef = useRef<string | null>(null);
 
   const controlsRef = useRef<any>(null);
   const keysPressed = useRef<Record<string, boolean>>({});
@@ -302,18 +313,19 @@ export function OfficeScene({
 
     const current = localStateRef.current;
 
-    // --- Trem: jalankan jadwal trem, lalu cek apakah pemain naik/turun/ikut bergerak ---
-    const ride =
-      isInterior || spectator
-        ? null
-        : (stepTram(state.clock.elapsedTime, delta),
-          updateRider(
-            delta,
-            [current.position[0], current.position[2]],
-            isMoving ? [moveDir.x, moveDir.z] : null
-          ));
+    // --- Trem: posisi trem dari server (sama untuk semua pemain), lalu cek naik/turun/ikut bergerak ---
+    let ride: ReturnType<typeof updateRider> = null;
+    if (!isInterior && !spectator) {
+      stepTramView(state.clock.elapsedTime);
+      ride = updateRider(
+        delta,
+        [current.position[0], current.position[2]],
+        isMoving ? [moveDir.x, moveDir.z] : null,
+        riderRef.current,
+      );
+    }
 
-    if (ride && ride.pos) {
+    if (ride) {
       // Pemain sedang di dalam trem, atau baru saja turun dari trem
       const [x, z] = ride.pos;
       let zone = current.zone;
@@ -323,10 +335,13 @@ export function OfficeScene({
       }
 
       localStateRef.current = {
-        position: [x, ride.riding ? TRAM.floorY : 0, z],
+        position: [x, ride.riding ? TRAM.floorY : platformY(x, z), z],
         rotationY: isMoving ? Math.atan2(moveDir.x, moveDir.z) : current.rotationY,
         animation: ride.riding && isMoving ? "walk" : "idle",
         zone,
+        ride: ride.riding
+          ? { rx: riderRef.current.rx, rz: riderRef.current.rz }
+          : null,
       };
     } else if (isMoving) {
       // Gerak jalan kaki biasa (di luar trem)
@@ -362,7 +377,7 @@ export function OfficeScene({
         if (stairs && onStairsRef.current) {
           elevationRef.current = py >= stairs.height / 2 ? stairs.height : 0;
         }
-        nextY = elevationRef.current;
+        nextY = isInterior ? elevationRef.current : platformY(nextX, nextZ);
       }
       onStairsRef.current = onStairs;
 
@@ -377,6 +392,29 @@ export function OfficeScene({
     }
 
     const cur = localStateRef.current;
+
+    // Petunjuk di atas kepala: naik saat trem berhenti dekat pintu, turun saat di dalam
+    const hintGroup = tramHintGroupRef.current;
+    if (hintGroup) {
+      let hint: string | null = null;
+      if (!isInterior && !spectator) {
+        if (ride?.riding) {
+          if (isTramStopped()) hint = "Tekan E untuk turun";
+        } else if (isNearTramDoor(cur.position[0], cur.position[2])) {
+          hint = isTramStopped()
+            ? "Tekan E untuk naik"
+            : "Tunggu trem berhenti untuk naik";
+        }
+      }
+      hintGroup.visible = hint !== null;
+      if (hint) {
+        hintGroup.position.set(cur.position[0], cur.position[1] + 2.5, cur.position[2]);
+        if (hint !== lastHintRef.current && tramHintTextRef.current) {
+          tramHintTextRef.current.textContent = hint;
+          lastHintRef.current = hint;
+        }
+      }
+    }
 
     // Pintu keluar interior: begitu pemain sampai di sana, kembali ke kota
     const activeInterior = interiorRef.current;
@@ -447,7 +485,7 @@ export function OfficeScene({
     emitTimer.current += delta;
     if (socket && emitTimer.current >= EMIT_INTERVAL) {
       emitTimer.current = 0;
-      const snapshot = `${cur.position[0]},${cur.position[1]},${cur.position[2]},${cur.rotationY},${cur.animation},${cur.zone}`;
+      const snapshot = `${cur.position[0]},${cur.position[1]},${cur.position[2]},${cur.rotationY},${cur.animation},${cur.zone},${cur.ride ? `${cur.ride.rx},${cur.ride.rz}` : "-"}`;
       if (snapshot !== lastSentRef.current) {
         lastSentRef.current = snapshot;
         socket.emit("player:move", cur);
@@ -476,27 +514,29 @@ export function OfficeScene({
 
   return (
     <>
-      <color attach="background" args={["#e2e8f0"]} />
-      {!isInterior && (
-        <Sky sunPosition={[100, 150, 80]} turbidity={0.1} rayleigh={0.5} />
+      {isInterior && <color attach="background" args={["#e2e8f0"]} />}
+      {isInterior ? (
+        <>
+        <ambientLight intensity={0.9} color="#ffffff" />
+        <directionalLight
+          position={[25, 45, 25]}
+          intensity={1.5}
+          castShadow
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
+          shadow-camera-far={90}
+          shadow-camera-left={-25}
+          shadow-camera-right={25}
+          shadow-camera-top={25}
+          shadow-camera-bottom={-25}
+          shadow-bias={-0.0005}
+          shadow-normalBias={0.04}
+        />
+        <hemisphereLight args={["#ffffff", "#cbd5e1", 0.6]} />
+        </>
+      ) : (
+        <WorldLighting />
       )}
-
-      <ambientLight intensity={0.9} color="#ffffff" />
-      <directionalLight
-        position={[25, 45, 25]}
-        intensity={1.5}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-camera-far={90}
-        shadow-camera-left={-25}
-        shadow-camera-right={25}
-        shadow-camera-top={25}
-        shadow-camera-bottom={-25}
-        shadow-bias={-0.0005}
-        shadow-normalBias={0.04}
-      />
-      <hemisphereLight args={["#ffffff", "#cbd5e1", 0.6]} />
 
       <OrbitControls
         ref={controlsRef}
@@ -511,6 +551,26 @@ export function OfficeScene({
       />
 
       {environment}
+
+      {!isInterior && !spectator && (
+        <group ref={tramHintGroupRef} visible={false}>
+          <Html center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
+            <div
+              ref={tramHintTextRef}
+              style={{
+                background: "rgba(15, 23, 42, 0.85)",
+                color: "#ffffff",
+                padding: "6px 12px",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+              }}
+            />
+          </Html>
+        </group>
+      )}
 
       {!spectator && (
         <Avatar3D

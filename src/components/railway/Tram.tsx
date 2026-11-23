@@ -2,19 +2,21 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Group } from "three";
-import { CAR_SPACING, TRAM, poseAt, stepTram, tram } from "@/lib/tramRuntime";
+import { TRAM, carPose, stepTramView } from "@/lib/tramRuntime";
 import { TramCar } from "@/components/railway/TramCar";
 
 export function Tram() {
   const carRefs = useRef<(Group | null)[]>([]);
 
-  useFrame(({ clock }, delta) => {
-    stepTram(clock.elapsedTime, delta);
+  useFrame(({ clock }) => {
+    // Posisi dari server (sama untuk semua pemain), bukan simulasi lokal
+    stepTramView(clock.elapsedTime);
 
     for (let i = 0; i < TRAM.carCount; i++) {
       const car = carRefs.current[i];
       if (!car) continue;
-      const p = poseAt(tram.head - i * CAR_SPACING);
+      // Pose gerbong dihitung dari ujung-ujungnya, sama dengan yang dipakai penumpang
+      const p = carPose(i);
       car.position.set(p.x, 0, p.z);
       car.rotation.set(0, p.angle, 0);
     }

@@ -1,5 +1,4 @@
 import { Html } from "@react-three/drei";
-import { DoubleSide } from "three";
 import type { InteriorConfig, Vec3 } from "@/config/buildings";
 
 /* ---------- Komponen dasar ---------- */
@@ -44,29 +43,6 @@ function Box3D({
         roughness={0.7}
       />
     </mesh>
-  );
-}
-
-function Umbrella({
-  pos,
-  color,
-  height = 2.3,
-}: {
-  pos: Vec3;
-  color: string;
-  height?: number;
-}) {
-  return (
-    <group position={pos}>
-      <mesh position={[0, height / 2, 0]} castShadow>
-        <cylinderGeometry args={[0.03, 0.03, height, 8]} />
-        <meshStandardMaterial color="#94a3b8" metalness={0.4} roughness={0.5} />
-      </mesh>
-      <mesh position={[0, height, 0]} castShadow>
-        <coneGeometry args={[1.2, 0.5, 16]} />
-        <meshStandardMaterial color={color} roughness={0.7} side={DoubleSide} />
-      </mesh>
-    </group>
   );
 }
 
@@ -146,9 +122,24 @@ function WarungDecor() {
         <meshStandardMaterial color="#fca5a5" roughness={1} />
       </mesh>
       {/* Lampu gantung hangat */}
-      <StringLights from={[-3.4, 2.7, -2.2]} to={[3.4, 2.7, -2.2]} sag={0.25} count={12} />
-      <StringLights from={[-3.4, 2.7, 2.5]} to={[3.4, 2.7, 2.5]} sag={0.25} count={12} />
-      <Sign pos={[0, 2.3, 4.6]} text="Ayo mampir, Warung Madura" bg="#b91c1c" color="#ffffff" />
+      <StringLights
+        from={[-3.4, 2.7, -2.2]}
+        to={[3.4, 2.7, -2.2]}
+        sag={0.25}
+        count={12}
+      />
+      <StringLights
+        from={[-3.4, 2.7, 2.5]}
+        to={[3.4, 2.7, 2.5]}
+        sag={0.25}
+        count={12}
+      />
+      <Sign
+        pos={[0, 2.3, 4.6]}
+        text="Ayo mampir, Warung Madura"
+        bg="#b91c1c"
+        color="#ffffff"
+      />
     </group>
   );
 }
@@ -166,10 +157,30 @@ function IndomartDecor() {
       <Box3D pos={[-6.1, 0.4, -12.6]} size={[1, 0.8, 0.8]} color="#c08457" />
       <Box3D pos={[7.6, 0.4, 11.5]} size={[1.2, 0.8, 0.8]} color="#c08457" />
       {/* Lampu strip di langit-langit */}
-      <Box3D pos={[-4, 4.85, 0]} size={[0.2, 0.06, 20]} color="#ffffff" emissive="#ffffff" />
-      <Box3D pos={[4, 4.85, 0]} size={[0.2, 0.06, 20]} color="#ffffff" emissive="#ffffff" />
-      <Sign pos={[0, 3.6, -14.2]} text="PROMO HARI INI" bg="#dc2626" color="#ffffff" />
-      <Sign pos={[0, 3.6, 13.8]} text="Selamat Datang" bg="#16a34a" color="#ffffff" />
+      <Box3D
+        pos={[-4, 4.85, 0]}
+        size={[0.2, 0.06, 20]}
+        color="#ffffff"
+        emissive="#ffffff"
+      />
+      <Box3D
+        pos={[4, 4.85, 0]}
+        size={[0.2, 0.06, 20]}
+        color="#ffffff"
+        emissive="#ffffff"
+      />
+      <Sign
+        pos={[0, 3.6, -14.2]}
+        text="PROMO HARI INI"
+        bg="#dc2626"
+        color="#ffffff"
+      />
+      <Sign
+        pos={[0, 3.6, 13.8]}
+        text="Selamat Datang"
+        bg="#16a34a"
+        color="#ffffff"
+      />
     </group>
   );
 }
@@ -190,10 +201,25 @@ function EnumaDecor() {
         <planeGeometry args={[3.4, 1.8]} />
         <meshStandardMaterial color="#2563eb" roughness={0.6} />
       </mesh>
-      <Sign pos={[-4.2, 1.8, 0]} text="Enuma Technology" bg="transparent" color="#1e3a8a" />
+      <Sign
+        pos={[-4.2, 1.8, 0]}
+        text="Enuma Technology"
+        bg="transparent"
+        color="#1e3a8a"
+      />
       {/* Panel lampu di langit-langit */}
-      <Box3D pos={[0, 3.95, -4]} size={[1.2, 0.05, 2.4]} color="#ffffff" emissive="#ffffff" />
-      <Box3D pos={[0, 3.95, 4]} size={[1.2, 0.05, 2.4]} color="#ffffff" emissive="#ffffff" />
+      <Box3D
+        pos={[0, 3.95, -4]}
+        size={[1.2, 0.05, 2.4]}
+        color="#ffffff"
+        emissive="#ffffff"
+      />
+      <Box3D
+        pos={[0, 3.95, 4]}
+        size={[1.2, 0.05, 2.4]}
+        color="#ffffff"
+        emissive="#ffffff"
+      />
       {/* Plint biru di kaki dinding */}
       <Box3D pos={[-4.45, 0.06, 0]} size={[0.02, 0.12, 18]} color="#2563eb" />
     </group>
@@ -206,7 +232,12 @@ function CafeGroundDecor() {
       <Plant pos={[6.4, 0, -11.4]} />
       <Plant pos={[6.4, 0, 8.0]} />
       <Plant pos={[-6.4, 0, -7.0]} />
-      <Sign pos={[0, 3.4, 11.8]} text="Lunara Cafe" bg="#f472b6" color="#ffffff" />
+      <Sign
+        pos={[0, 3.4, 11.8]}
+        text="Lunara Cafe"
+        bg="#f472b6"
+        color="#ffffff"
+      />
     </group>
   );
 }

@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { Billboard, Html, RoundedBox, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { type PlayerTickData } from "@/hooks/useOfficeSocket";
+import { riderWorldPos, stepTramView, TRAM } from "@/lib/tramRuntime";
 import { getStatusMeta } from "@/config/status";
 import { type MemberRole, type PlayerStatus } from "@/types";
 import { getRoleMeta } from "@/lib/roles";
@@ -264,10 +265,18 @@ export function Avatar3D({
     }
 
     // Frame-rate independent damping
-    const posAlpha = 1 - Math.exp(-(isLocal ? 35 : 14) * delta);
     const rotAlpha = 1 - Math.exp(-(isLocal ? 25 : 14) * delta);
 
-    groupRef.current.position.lerp(targetVec.current, posAlpha);
+    if (!isLocal && tick?.ride) {
+      // Penumpang trem pemain lain: posisi dihitung dari trem yang sama dengan
+      // client ini, sehingga ikut bergerak tepat bersama kabin tanpa tertinggal
+      stepTramView(state.clock.elapsedTime);
+      const [x, z] = riderWorldPos(tick.ride.rx, tick.ride.rz);
+      groupRef.current.position.set(x, TRAM.floorY, z);
+    } else {
+      const posAlpha = 1 - Math.exp(-(isLocal ? 35 : 14) * delta);
+      groupRef.current.position.lerp(targetVec.current, posAlpha);
+    }
     if (tick) {
       groupRef.current.rotation.y = lerpAngle(
         groupRef.current.rotation.y,

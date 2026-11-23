@@ -15,7 +15,14 @@ export interface ChatMessage {
   createdAt?: string;
 }
 
+/** Penumpang trem: posisi lokal di dalam kabin. null jika tidak sedang naik. */
+export interface RideState {
+  rx: number;
+  rz: number;
+}
+
 export interface RemotePlayer {
+  ride?: RideState | null;
   socketId: string;
   userId: string;
   fullName: string;

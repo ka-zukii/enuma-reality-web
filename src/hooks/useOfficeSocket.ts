@@ -1,3 +1,6 @@
+import type { RideState } from "@/types";
+import { applyTramSnapshot, resetTramSnapshot, type TramSnapshot } from "@/lib/tramRuntime";
+import { syncWorldClock } from "@/lib/worldClock";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 import { authFetch } from "@/lib/api";
@@ -14,6 +17,8 @@ import type { Vec3 } from "@/config/buildings";
 
 export interface PlayerTickData {
   position: Vec3;
+  /** Penumpang trem: posisi di kabin. Jika ada, posisi dunia dihitung dari trem. */
+  ride?: RideState | null;
   rotationY: number;
   animation: "idle" | "walk";
   zone: string;
@@ -143,6 +148,7 @@ export function useOfficeSocket(userId: string | null) {
       selfTickRef.current = null;
       reconnectingIdsRef.current.clear();
       idleRef.current = false;
+      resetTramSnapshot();
     },
     [settlePendingJoin, clearAllBubbleTimers],
   );
@@ -327,6 +333,7 @@ export function useOfficeSocket(userId: string | null) {
           if (state === "reconnecting") reconnecting.add(p.userId);
           remoteTicksRef.current[p.userId] = {
             position: p.position,
+            ride: p.ride ?? null,
             rotationY: p.rotationY,
             animation: p.animation,
             zone: p.zone,
@@ -345,6 +352,7 @@ export function useOfficeSocket(userId: string | null) {
         const keepPos = prevTick?.position || player.position;
         remoteTicksRef.current[player.userId] = {
           position: keepPos,
+          ride: player.ride ?? null,
           rotationY: player.rotationY ?? prevTick?.rotationY ?? 0,
           animation: player.animation ?? prevTick?.animation ?? "idle",
           zone: player.zone ?? prevTick?.zone ?? "jalan-utama",
@@ -363,6 +371,15 @@ export function useOfficeSocket(userId: string | null) {
         ({ userId: id }: { userId: string }) => {
           if (id === uid) return;
           syncConnectionState(id, "reconnecting");
+        },
+      );
+
+      // Status trem dan waktu server, dikirim server setiap tick (20 Hz)
+      newSocket.on(
+        "room:world",
+        (world: { tram: TramSnapshot; serverTime: number }) => {
+          syncWorldClock(world.serverTime);
+          applyTramSnapshot(world.tram);
         },
       );
 
@@ -385,6 +402,7 @@ export function useOfficeSocket(userId: string | null) {
 
             remoteTicksRef.current[t.userId] = {
               position: t.position,
+              ride: t.ride ?? null,
               rotationY: t.rotationY,
               animation: t.animation,
               zone: t.zone,

@@ -26,6 +26,12 @@ import {
   type Vec3,
 } from "@/config/buildings";
 import type { CameraMode } from "@/config/camera";
+import {
+  TRAM,
+  installTramKey,
+  stepTram,
+  updateRider,
+} from "@/lib/tramRuntime";
 
 interface OfficeSceneProps {
   socket: Socket | null;
@@ -63,7 +69,8 @@ const POS_REPORT_INTERVAL = 0.15;
 /** Batas atas delta waktu. Saat frame turun, karakter tidak melompat jauh sekaligus. */
 const MAX_DT = 1 / 30;
 const DEFAULT_SPAWN: Vec3 = [0, 0, 3];
-const CITY_BOUNDS = { minX: -37, maxX: 37, minZ: -25, maxZ: 27 };
+/** Sesuai tepi paving 84x84 di CityEnvironment.tsx */
+const CITY_BOUNDS = { minX: -42, maxX: 42, minZ: -42, maxZ: 42 };
 
 const noop = () => {};
 
@@ -207,6 +214,12 @@ export function OfficeScene({
     if (isInterior) onZoneChange("interior");
   }, [isInterior, onZoneChange]);
 
+  // Tombol E untuk naik/turun trem hanya aktif di kota dan untuk pemain (bukan pengamat)
+  useEffect(() => {
+    if (isInterior || spectator) return;
+    return installTramKey();
+  }, [isInterior, spectator]);
+
   // Setelah masuk, join ulang, atau pindah ruangan, server belum tahu state terbaru kita.
   // Kosongkan ringkasan agar frame berikutnya langsung mengirim state lengkap.
   useEffect(() => {
@@ -285,11 +298,38 @@ export function OfficeScene({
     }
 
     const isMoving = moveDir.lengthSq() > 0.0001;
+    if (isMoving) moveDir.normalize();
+
     const current = localStateRef.current;
 
-    if (isMoving) {
-      moveDir.normalize();
+    // --- Trem: jalankan jadwal trem, lalu cek apakah pemain naik/turun/ikut bergerak ---
+    const ride =
+      isInterior || spectator
+        ? null
+        : (stepTram(state.clock.elapsedTime, delta),
+          updateRider(
+            delta,
+            [current.position[0], current.position[2]],
+            isMoving ? [moveDir.x, moveDir.z] : null
+          ));
 
+    if (ride && ride.pos) {
+      // Pemain sedang di dalam trem, atau baru saja turun dari trem
+      const [x, z] = ride.pos;
+      let zone = current.zone;
+      if (!ride.riding) {
+        zone = detectCityZone(x, z);
+        if (zone !== current.zone) onZoneChange(zone);
+      }
+
+      localStateRef.current = {
+        position: [x, ride.riding ? TRAM.floorY : 0, z],
+        rotationY: isMoving ? Math.atan2(moveDir.x, moveDir.z) : current.rotationY,
+        animation: ride.riding && isMoving ? "walk" : "idle",
+        zone,
+      };
+    } else if (isMoving) {
+      // Gerak jalan kaki biasa (di luar trem)
       const [px, py, pz] = current.position;
       const stepX = moveDir.x * MOVE_SPEED * delta;
       const stepZ = moveDir.z * MOVE_SPEED * delta;

@@ -7,6 +7,9 @@ import {
   ParkBench,
 } from "@/components/CityProps";
 import { CityLife, Sway } from "@/components/city/CityLife";
+import { RailTrack } from "@/components/railway/RailTrack";
+import { TrainStation } from "@/components/railway/TrainStation";
+import { Tram } from "./railway/Tram";
 
 interface CityEnvironmentProps {
   onBuildingSelect: (building: BuildingInfo) => void;
@@ -349,6 +352,9 @@ export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
           KEHIDUPAN KOTA: pejalan kaki, lalu lintas, burung, awan, cahaya
           ======================================================== */}
       <CityLife />
+      <RailTrack />
+      <TrainStation position={[0, 0, 36.6]} />
+      <Tram />
     </group>
   );
 }

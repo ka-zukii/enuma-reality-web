@@ -61,8 +61,8 @@ export function WorldLighting() {
         intensity={l.sunI}
         color={l.sun}
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
         shadow-camera-far={120}
         shadow-camera-left={-30}
         shadow-camera-right={30}

@@ -23,7 +23,10 @@ interface CityModelBuildingProps {
 
 /** Subjudul di label gedung kota */
 /** Subjudul dan ikon label, sama dengan label asli di kota (ModernBuilding) */
-const LABEL_STYLE: Record<string, { subtitle: string; icon: "shop" | "cafe" | "office" }> = {
+const LABEL_STYLE: Record<
+  string,
+  { subtitle: string; icon: "shop" | "cafe" | "office" }
+> = {
   "warung-madura": { subtitle: "Jajanan & Minuman", icon: "shop" },
   indomart: { subtitle: "Minimarket & Kebutuhan Harian", icon: "shop" },
   "enuma-hq": { subtitle: "Pusat Kantor Virtual", icon: "office" },
@@ -69,19 +72,25 @@ export function CityModelBuilding({
       obj.visible = true;
       const mesh = obj as THREE.Mesh;
       if (mesh.isMesh) {
-        mesh.castShadow = true;
+        // Interior tidak melempar bayangan (sangat mahal); cukup terima bayangan
+        mesh.castShadow = false;
         mesh.receiveShadow = true;
-        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        const cloned = mats.map((m) => {
-          const c = m.clone();
-          c.side = THREE.DoubleSide;
-          return c;
-        });
-        mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0];
       }
 
       const slide = slideByName.get(obj.name);
       if (slide) {
+        // Hanya pintu yang butuh material sendiri (untuk DoubleSide & animasi)
+        if (mesh.isMesh) {
+          const mats = Array.isArray(mesh.material)
+            ? mesh.material
+            : [mesh.material];
+          const cloned = mats.map((m) => {
+            const c = m.clone();
+            c.side = THREE.DoubleSide;
+            return c;
+          });
+          mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0];
+        }
         parts.push({
           mesh: obj,
           closed: [obj.position.x, obj.position.y, obj.position.z],
@@ -118,7 +127,10 @@ export function CityModelBuilding({
     doorReady[config.key] = p > 0.95;
   });
 
-  const style = LABEL_STYLE[config.key] ?? { subtitle: info.category, icon: "office" as const };
+  const style = LABEL_STYLE[config.key] ?? {
+    subtitle: info.category,
+    icon: "office" as const,
+  };
 
   return (
     <group position={[position[0], 0, position[1]]}>
@@ -127,7 +139,16 @@ export function CityModelBuilding({
         onClick={(e) => {
           e.stopPropagation();
           // DEBUG: catat nama mesh yang diklik
-          console.log("[DEBUG gedung]", config.key, "| mesh:", e.object.name, "| parent:", e.object.parent?.name, "| titik:", e.point.toArray().map((v) => v.toFixed(2)));
+          console.log(
+            "[DEBUG gedung]",
+            config.key,
+            "| mesh:",
+            e.object.name,
+            "| parent:",
+            e.object.parent?.name,
+            "| titik:",
+            e.point.toArray().map((v) => v.toFixed(2)),
+          );
           onSelect(info);
         }}
         onPointerOver={() => (document.body.style.cursor = "pointer")}
@@ -137,37 +158,37 @@ export function CityModelBuilding({
       </group>
 
       {showLabel && (
-      <Html
-        position={[0, top + 1.2, 0]}
-        center
-        distanceFactor={22}
-        zIndexRange={[10, 0]}
-      >
-        <div
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect(info);
-          }}
-          className="group cursor-pointer flex items-center gap-1.5 p-1.5 pl-3 rounded-full bg-slate-900/90 hover:bg-slate-900 text-white border border-cyan-400/80 shadow-[0_4px_20px_rgba(56,189,248,0.35)] backdrop-blur-md transition-all duration-200 hover:scale-105 select-none"
+        <Html
+          position={[0, top + 1.2, 0]}
+          center
+          distanceFactor={22}
+          zIndexRange={[10, 0]}
         >
-          <div className="w-6 h-6 rounded-full bg-linear-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shrink-0 shadow-inner">
-            {style.icon === "shop" && <Store className="w-3.5 h-3.5" />}
-            {style.icon === "cafe" && <Coffee className="w-3.5 h-3.5" />}
-            {style.icon === "office" && <Building2 className="w-3.5 h-3.5" />}
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(info);
+            }}
+            className="group cursor-pointer flex items-center gap-1.5 p-1.5 pl-3 rounded-full bg-slate-900/90 hover:bg-slate-900 text-white border border-cyan-400/80 shadow-[0_4px_20px_rgba(56,189,248,0.35)] backdrop-blur-md transition-all duration-200 hover:scale-105 select-none"
+          >
+            <div className="w-6 h-6 rounded-full bg-linear-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shrink-0 shadow-inner">
+              {style.icon === "shop" && <Store className="w-3.5 h-3.5" />}
+              {style.icon === "cafe" && <Coffee className="w-3.5 h-3.5" />}
+              {style.icon === "office" && <Building2 className="w-3.5 h-3.5" />}
+            </div>
+            <div className="flex flex-col pr-1">
+              <span className="text-xs font-bold tracking-tight text-white whitespace-nowrap leading-tight">
+                {info.name}
+              </span>
+              <span className="text-[10px] text-cyan-200/80 whitespace-nowrap leading-none">
+                {style.subtitle}
+              </span>
+            </div>
+            <div className="px-2.5 py-1 rounded-full bg-linear-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-[10px] font-semibold text-white shadow-sm flex items-center gap-0.5 whitespace-nowrap">
+              Masuk ›
+            </div>
           </div>
-          <div className="flex flex-col pr-1">
-            <span className="text-xs font-bold tracking-tight text-white whitespace-nowrap leading-tight">
-              {info.name}
-            </span>
-            <span className="text-[10px] text-cyan-200/80 whitespace-nowrap leading-none">
-              {style.subtitle}
-            </span>
-          </div>
-          <div className="px-2.5 py-1 rounded-full bg-linear-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-[10px] font-semibold text-white shadow-sm flex items-center gap-0.5 whitespace-nowrap">
-            Masuk ›
-          </div>
-        </div>
-      </Html>
+        </Html>
       )}
     </group>
   );

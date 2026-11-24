@@ -14,7 +14,8 @@ import { Avatar3D } from "@/components/Avatar3D";
 import { GhostGroup } from "@/components/GhostGroup";
 import { CityEnvironment } from "@/components/CityEnvironment";
 import { InteriorEnvironment } from "@/components/interiors/InteriorEnvironment";
-import { WorldLighting } from "@/components/WorldLighting";
+import { WorldLighting, type TimeMode } from "@/components/WorldLighting";
+import type { WeatherOverride } from "@/components/RainEffect";
 import { type MemberRole, type PlayerStatus, type RemotePlayer } from "@/types";
 import { type PlayerTickData } from "@/hooks/useOfficeSocket";
 import {
@@ -58,6 +59,12 @@ interface OfficeSceneProps {
   /** Dipanggil dengan throttle (sekitar 6x per detik) saat posisi lokal berubah */
   onLocalPositionChange?: (pos: Vec3) => void;
   cameraMode: CameraMode;
+  /** Mode waktu lingkungan: live = jam WIB asli */
+  timeMode?: TimeMode;
+  /** false = sembunyikan label gedung */
+  labelsVisible?: boolean;
+  /** Tombol Hujan / Badai di panel status */
+  weatherOverride?: WeatherOverride;
   /** Mode pengamat (sebelum masuk): tanpa avatar lokal dan tanpa kontrol gerak */
   spectator?: boolean;
   /** Posisi awal avatar di kota (mis. pintu gedung yang baru ditinggalkan) */
@@ -170,6 +177,9 @@ export function OfficeScene({
   onBuildingSelect,
   onLocalPositionChange,
   cameraMode,
+  timeMode = "live",
+  labelsVisible = true,
+  weatherOverride = null,
   spectator = false,
   initialPosition,
   interior,
@@ -513,7 +523,7 @@ export function OfficeScene({
     environment = (
       <CityEnvironment
         onBuildingSelect={onBuildingSelect ?? noop}
-        showLabels={cameraMode !== "first"}
+        showLabels={cameraMode !== "first" && labelsVisible}
       />
     );
   }
@@ -541,7 +551,7 @@ export function OfficeScene({
         <hemisphereLight args={["#ffffff", "#cbd5e1", 0.6]} />
         </>
       ) : (
-        <WorldLighting />
+        <WorldLighting timeMode={timeMode} weatherOverride={weatherOverride} />
       )}
 
       <OrbitControls

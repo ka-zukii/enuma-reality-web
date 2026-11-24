@@ -6,6 +6,9 @@ import {
   useRef,
   useState,
 } from "react";
+import type { TimeMode } from "@/components/WorldLighting";
+import type { WeatherOverride } from "@/components/RainEffect";
+import type { PlayerStatus } from "@/types";
 import { CITY_DOORS } from "@/config/doors";
 import { doorReady } from "@/lib/playerPosition";
 import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
@@ -49,6 +52,22 @@ function distXZ(a: Vec3, b: Vec3) {
 }
 
 /** Canvas dibuat ulang setiap pindah halaman, sehingga memori scene sebelumnya dilepas */
+/** Status di mode jelajah -> mode waktu lingkungan */
+function statusToTimeMode(status?: PlayerStatus | null): TimeMode {
+  switch (status) {
+    case "PAGI":
+      return "pagi";
+    case "SORE":
+      return "sore";
+    case "MALAM":
+      return "malam";
+    case "ISTIRAHAT":
+      return "istirahat";
+    default:
+      return "live";
+  }
+}
+
 function SceneCanvas({
   children,
   camera,
@@ -141,12 +160,25 @@ function AppContent() {
     enterRoom,
     enterBuilding,
     setStatus,
+
   } = useOfficeSocket(userId);
+
+  // Status di mode jelajah: disimpan lokal (untuk lingkungan),
+  // dan dikirim ke server hanya untuk status yang dikenalnya
+  const [localStatus, setLocalStatus] = useState<PlayerStatus>("LIVE");
+  const handleStatusChange = (next: PlayerStatus) => {
+    setLocalStatus(next);
+    if (next === "LIVE" || next === "PAGI" || next === "ISTIRAHAT") setStatus(next);
+  };
 
   // Tampilan sebelum masuk (overview kota + modal nama)
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [landingMenu, setLandingMenu] = useState<LandingMenuKey | null>(null);
   const [landingView, setLandingView] = useState("Beranda");
+  const [timeMode, setTimeMode] = useState<TimeMode>("live");
+  const [labelsVisible, setLabelsVisible] = useState(true);
+  const [hudVisible, setHudVisible] = useState(true);
+  const [weatherOverride, setWeatherOverride] = useState<WeatherOverride>(null);
   const [currentZone, setCurrentZone] = useState("jalan-utama");
   const [isChatFocused, setIsChatFocused] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -376,6 +408,9 @@ function AppContent() {
             isChatFocused={true}
             cameraMode="iso"
             spectator
+            timeMode={timeMode}
+            labelsVisible={labelsVisible}
+            weatherOverride={weatherOverride}
           />
         </SceneCanvas>
         <div className="pointer-events-none absolute inset-0 bg-slate-900/25" />
@@ -386,6 +421,14 @@ function AppContent() {
           activeView={landingView}
           onViewSelect={setLandingView}
           onExplore={() => setShowGuestModal(true)}
+          timeMode={timeMode}
+          onTimeModeChange={setTimeMode}
+          weatherOverride={weatherOverride}
+          onWeatherOverrideChange={setWeatherOverride}
+          labelsVisible={labelsVisible}
+          onToggleLabels={() => setLabelsVisible((v) => !v)}
+          hudVisible={hudVisible}
+          onToggleHud={() => setHudVisible((v) => !v)}
         />
 
         {showGuestModal && (
@@ -433,6 +476,7 @@ function AppContent() {
                 }}
                 onLocalPositionChange={handleLocalPosition}
                 cameraMode={cameraMode}
+                    timeMode={statusToTimeMode(localStatus)}
               />
             </SceneCanvas>
           }
@@ -514,8 +558,8 @@ function AppContent() {
         onFocusChatChange={setIsChatFocused}
         onOpenWorkspaceModal={() => setShowJoinModal(true)}
         workspaceName={currentBuilding?.interior.name ?? workspace?.name}
-        userStatus={selfInfo?.status ?? "LIVE"}
-        onStatusChange={setStatus}
+        userStatus={localStatus}
+        onStatusChange={handleStatusChange}
         onExit={() => void signOut()}
       />
 

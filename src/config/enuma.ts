@@ -10,7 +10,11 @@ export const COMPANY = {
  * Jam kerja (WIB). TODO: pastikan ke Enuma.
  * days: 0 = Minggu, 1 = Senin, ... 6 = Sabtu
  */
-export const WORK_HOURS = { days: [1, 2, 3, 4, 5], start: 8, end: 17 };
+/** Jam kerja: Senin-Jumat 09.00-16.00 WIB */
+export const WORK_HOURS = { days: [1, 2, 3, 4, 5], start: 9, end: 16 };
+
+/** Istirahat siang: 12.00-13.00 WIB */
+export const BREAK_HOURS = { start: 12, end: 13 };
 
 export interface Room {
   id: string;
@@ -74,11 +78,12 @@ export const TEAM: TeamMember[] = [
 /** Tombol status di kartu Jam Kerja (urutan sesuai desain: 3 kolom x 2 baris) */
 export const STATUS_CHIPS = [
   "Live",
-  "Stand-Up",
   "Istirahat",
   "Pagi",
   "Sore",
   "Malam",
+  "Hujan",
+  "Badai",
 ] as const;
 
 

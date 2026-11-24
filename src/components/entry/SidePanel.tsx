@@ -1,3 +1,5 @@
+import type { TimeMode } from "@/components/WorldLighting";
+import type { WeatherOverride } from "@/components/RainEffect";
 import { useState, type ReactNode } from "react";
 import {
   ChevronRight,
@@ -9,7 +11,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { COMPANY, ROOMS, STATUS_CHIPS, TEAM } from "@/config/enuma";
-import { formatDateTimeWib, isWorkingHours, useNow } from "@/hooks/useNow";
+import {
+  formatDateTimeWib,
+  formatWibAt,
+  isBreakAt,
+  isBreakTime,
+  isWorkingAt,
+  isWorkingHours,
+  useNow,
+} from "@/hooks/useNow";
 import { useWeather, type Weather, type WeatherKind } from "@/hooks/useWeather";
 
 const WEATHER_ICON: Record<WeatherKind, LucideIcon> = {
@@ -32,13 +42,48 @@ function InfoCard({
   now,
   weather,
   onlineCount,
+  timeMode,
+  onTimeModeChange,
+  weatherOverride,
+  onWeatherOverrideChange,
 }: {
   now: Date;
   weather: Weather | null;
   onlineCount?: number;
+  timeMode: TimeMode;
+  onTimeModeChange: (mode: TimeMode) => void;
+  weatherOverride: WeatherOverride;
+  onWeatherOverrideChange: (o: WeatherOverride) => void;
 }) {
-  const [status, setStatus] = useState<string>("Live");
-  const working = isWorkingHours(now);
+  const CHIP_TO_MODE: Record<string, TimeMode> = {
+    Live: "live",
+    Istirahat: "istirahat",
+    Pagi: "pagi",
+    Sore: "sore",
+    Malam: "malam",
+  };
+  const MODE_TO_CHIP: Record<TimeMode, string> = {
+    live: "Live",
+    istirahat: "Istirahat",
+    pagi: "Pagi",
+    sore: "Sore",
+    malam: "Malam",
+  };
+  const status = MODE_TO_CHIP[timeMode];
+  // Mode Pagi/Sore/Malam memakai jam tetap; Live memakai jam WIB asli
+  const fixedHour =
+    timeMode === "istirahat"
+      ? 12
+      : timeMode === "pagi"
+        ? 8
+        : timeMode === "sore"
+          ? 17
+          : timeMode === "malam"
+            ? 21
+            : null;
+  const working = fixedHour === null ? isWorkingHours(now) : isWorkingAt(now, fixedHour);
+  const onBreak = fixedHour === null ? isBreakTime(now) : isBreakAt(fixedHour);
+  const shownTime = fixedHour === null ? formatDateTimeWib(now) : formatWibAt(now, fixedHour);
   const WeatherIcon = weather ? WEATHER_ICON[weather.kind] : Cloud;
 
   return (
@@ -51,10 +96,10 @@ function InfoCard({
               : "bg-amber-100 text-amber-700"
           }`}
         >
-          {working ? "JAM KERJA" : "DI LUAR JAM"}
+          {onBreak ? "ISTIRAHAT" : working ? "JAM KERJA" : "DI LUAR JAM"}
         </span>
         <span className="text-xs tabular-nums text-slate-500">
-          {formatDateTimeWib(now)}
+          {shownTime}
         </span>
       </div>
 
@@ -82,11 +127,24 @@ function InfoCard({
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         {STATUS_CHIPS.map((chip) => {
-          const active = chip === status;
+          const active =
+            chip === "Hujan"
+              ? weatherOverride === "hujan"
+              : chip === "Badai"
+                ? weatherOverride === "badai"
+                : chip === status;
           return (
             <button
               key={chip}
-              onClick={() => setStatus(chip)}
+              onClick={() => {
+                if (chip === "Hujan") {
+                  onWeatherOverrideChange(weatherOverride === "hujan" ? null : "hujan");
+                } else if (chip === "Badai") {
+                  onWeatherOverrideChange(weatherOverride === "badai" ? null : "badai");
+                } else {
+                  onTimeModeChange(CHIP_TO_MODE[chip] ?? "live");
+                }
+              }}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium transition cursor-pointer ${
                 active
                   ? "bg-black text-white"
@@ -143,6 +201,10 @@ function CollapsibleCard({
 }
 
 interface SidePanelProps {
+  timeMode?: TimeMode;
+  weatherOverride?: WeatherOverride;
+  onWeatherOverrideChange?: (o: WeatherOverride) => void;
+  onTimeModeChange?: (mode: TimeMode) => void;
   /** Hanya tampil bila diisi (butuh koneksi server) */
   onlineCount?: number;
   /** Dipakai nanti untuk menggerakkan kamera */
@@ -154,6 +216,10 @@ export function SidePanel({
   onlineCount,
   onRoomSelect,
   onMemberSelect,
+  timeMode = "live",
+  onTimeModeChange = () => {},
+  weatherOverride = null,
+  onWeatherOverrideChange = () => {},
 }: SidePanelProps) {
   const now = useNow();
   const weather = useWeather();
@@ -162,7 +228,15 @@ export function SidePanel({
 
   return (
     <div className="pointer-events-auto absolute left-3 top-28 hidden max-h-[calc(100dvh-132px)] w-[min(336px,calc(100vw-1.5rem))] flex-col gap-3 overflow-y-auto p-1 sm:left-6 sm:flex">
-      <InfoCard now={now} weather={weather} onlineCount={onlineCount} />
+      <InfoCard
+        now={now}
+        weather={weather}
+        onlineCount={onlineCount}
+        timeMode={timeMode}
+        onTimeModeChange={onTimeModeChange}
+        weatherOverride={weatherOverride}
+        onWeatherOverrideChange={onWeatherOverrideChange}
+      />
 
       <CollapsibleCard title="Ruangan">
         <ul className="space-y-0.5">

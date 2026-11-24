@@ -10,9 +10,9 @@ export interface StatusOption {
 export const STATUS_OPTIONS: StatusOption[] = [
   { value: "LIVE", label: "Live", color: "#10b981" },
   { value: "PAGI", label: "Pagi", color: "#f59e0b" },
-  { value: "STANDUP", label: "Stand-up", color: "#8b5cf6" },
+  { value: "SORE", label: "Sore", color: "#ec4899" },
+  { value: "MALAM", label: "Malam", color: "#6366f1" },
   { value: "ISTIRAHAT", label: "Istirahat", color: "#f97316" },
-  { value: "TAMU", label: "Tamu", color: "#64748b" },
 ];
 
 export function getStatusMeta(status?: string | null): StatusOption {

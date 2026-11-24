@@ -1,4 +1,11 @@
-export type PlayerStatus = "LIVE" | "PAGI" | "STANDUP" | "ISTIRAHAT" | "TAMU";
+export type PlayerStatus =
+  | "LIVE"
+  | "PAGI"
+  | "SORE"
+  | "MALAM"
+  | "STANDUP"
+  | "ISTIRAHAT"
+  | "TAMU";
 export type MemberRole = "OWNER" | "ADMIN" | "MEMBER" | "GUEST";
 
 /** Sinkron dengan server. "reconnecting": socket putus, avatar ditahan server (grace period). */

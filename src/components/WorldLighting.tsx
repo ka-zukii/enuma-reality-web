@@ -1,11 +1,11 @@
 // src/components/WorldLighting.tsx
 // Siklus siang-malam untuk kota: langit, kabut, bintang, dan cahaya.
 // Fase dihitung dari jam server, jadi semua pemain melihat kondisi yang sama.
+import { RainEffect, type WeatherOverride } from "@/components/RainEffect";
 import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { Sky, Stars } from "@react-three/drei";
-import { cyclePhase, lightingAt, type SkyLighting } from "@/config/dayCycle";
-import { worldNowMs } from "@/lib/worldClock";
+import { lightingAt, type SkyLighting } from "@/config/dayCycle";
 
 /** Seberapa sering warna & cahaya diperbarui. 1 jam dunia = 50 detik. */
 const UPDATE_MS = 500;
@@ -13,18 +13,54 @@ const UPDATE_MS = 500;
 const FOG_NEAR = 120;
 const FOG_FAR = 420;
 
-function currentLighting(): SkyLighting {
-  return lightingAt(cyclePhase(worldNowMs()));
+export type TimeMode = "live" | "istirahat" | "pagi" | "sore" | "malam";
+
+/** Jam fixed untuk mode Pagi / Sore / Malam */
+const FIXED_HOUR: Record<Exclude<TimeMode, "live">, number> = {
+  istirahat: 12,
+  pagi: 8,
+  sore: 17,
+  malam: 21,
+};
+
+/** Jam WIB sekarang, termasuk menit (contoh 9.5 = 09:30) */
+function wibHour(): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: "Asia/Jakarta",
+  }).formatToParts(new Date());
+  const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+  const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+  return h + m / 60;
 }
 
-export function WorldLighting() {
-  const [l, setL] = useState<SkyLighting>(currentLighting);
+/** Fase siklus untuk jam tertentu: jam 6 = fase 0 (terbit), sesuai dayCycle */
+function hourToPhase(hour: number): number {
+  return ((((hour - 6) % 24) + 24) % 24) / 24;
+}
+
+function lightingFor(mode: TimeMode): SkyLighting {
+  const hour = mode === "live" ? wibHour() : FIXED_HOUR[mode];
+  return lightingAt(hourToPhase(hour));
+}
+
+export function WorldLighting({
+  timeMode = "live",
+  weatherOverride = null,
+}: {
+  timeMode?: TimeMode;
+  weatherOverride?: WeatherOverride;
+}) {
+  const [l, setL] = useState<SkyLighting>(() => lightingFor(timeMode));
   const fog = useMemo(() => new THREE.Fog("#ffffff", FOG_NEAR, FOG_FAR), []);
 
   useEffect(() => {
-    const id = window.setInterval(() => setL(currentLighting()), UPDATE_MS);
+    setL(lightingFor(timeMode));
+    const id = window.setInterval(() => setL(lightingFor(timeMode)), UPDATE_MS);
     return () => window.clearInterval(id);
-  }, []);
+  }, [timeMode]);
 
   useEffect(() => {
     fog.color.copy(l.fog);
@@ -76,6 +112,7 @@ export function WorldLighting() {
         groundColor={l.hemiGround}
         intensity={l.hemi}
       />
+      <RainEffect override={weatherOverride} />
     </>
   );
 }

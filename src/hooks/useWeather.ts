@@ -2,10 +2,17 @@ import { useEffect, useState } from "react";
 
 export type WeatherKind = "sun" | "cloud" | "fog" | "rain" | "storm";
 
+/** Intensitas hujan dari label BMKG */
+export type RainIntensity = "light" | "moderate" | "heavy";
+
 export interface Weather {
   temp: number;
   label: string;
   kind: WeatherKind;
+  /** Hanya bermakna saat kind = rain atau storm */
+  intensity: RainIntensity;
+  /** Ada petir (badai atau label "Petir") */
+  thunder: boolean;
   /** Nama kecamatan dari BMKG (mis. "Kartasura") */
   place?: string;
 }
@@ -32,6 +39,19 @@ function kindFromCode(code: number): WeatherKind {
   if (code === 3 || code === 4) return "cloud";
   if (code === 0 || code === 1 || code === 2) return "sun";
   return "cloud";
+}
+
+/** Intensitas hujan dari label dan kode BMKG */
+function rainIntensity(code: number, desc: string): RainIntensity {
+  const d = desc.toLowerCase();
+  if (/lebat|deras|ekstrem/.test(d) || [65, 67, 82].includes(code)) return "heavy";
+  if (/sedang/.test(d) || [53, 62, 63, 81].includes(code)) return "moderate";
+  return "light";
+}
+
+/** Petir: kode badai atau label yang menyebut petir */
+function hasThunder(code: number, desc: string): boolean {
+  return code >= 95 || /petir/.test(desc.toLowerCase());
 }
 
 /** Ambil prakiraan dengan waktu terdekat dari sekarang */
@@ -70,10 +90,14 @@ export function useWeather() {
           const nearest = pickNearest(entries);
           if (!nearest || typeof nearest.t !== "number") return;
 
+          const code = Number(nearest.weather);
+          const desc = nearest.weather_desc ?? "";
           setWeather({
             temp: Math.round(nearest.t),
-            label: nearest.weather_desc ?? "Berawan",
-            kind: kindFromCode(Number(nearest.weather)),
+            label: desc || "Berawan",
+            kind: kindFromCode(code),
+            intensity: rainIntensity(code, desc),
+            thunder: hasThunder(code, desc),
             place: item?.lokasi?.kecamatan,
           });
         })

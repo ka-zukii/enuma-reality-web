@@ -1,4 +1,6 @@
-import { Compass } from "lucide-react";
+import { Compass, Eye, EyeOff, Maximize, Tag } from "lucide-react";
+import type { TimeMode } from "@/components/WorldLighting";
+import type { WeatherOverride } from "@/components/RainEffect";
 import { SidePanel } from "@/components/entry/SidePanel";
 import { InfoModal } from "@/components/entry/InfoModal";
 
@@ -20,6 +22,14 @@ interface LandingOverlayProps {
   /** Tidak dipakai lagi di navbar; dibiarkan agar pemanggil tidak error. */
   onViewSelect?: (view: string) => void;
   onExplore: () => void;
+  timeMode?: TimeMode;
+  onTimeModeChange?: (mode: TimeMode) => void;
+  weatherOverride?: WeatherOverride;
+  onWeatherOverrideChange?: (o: WeatherOverride) => void;
+  labelsVisible?: boolean;
+  onToggleLabels?: () => void;
+  hudVisible?: boolean;
+  onToggleHud?: () => void;
 }
 
 export function LandingOverlay({
@@ -27,6 +37,14 @@ export function LandingOverlay({
   onMenuSelect,
   onMenuClose,
   onExplore,
+  timeMode = "live",
+  onTimeModeChange,
+  weatherOverride = null,
+  onWeatherOverrideChange,
+  labelsVisible = true,
+  onToggleLabels,
+  hudVisible = true,
+  onToggleHud,
 }: LandingOverlayProps) {
   const handleMenu = (key: LandingMenuKey) => {
     if (activeMenu === key) onMenuClose?.();
@@ -35,9 +53,17 @@ export function LandingOverlay({
 
   return (
     <div className="pointer-events-none absolute inset-0 z-30 select-none p-2.5 sm:p-6 lg:p-8">
-      <SidePanel />
+      {hudVisible && (
+        <SidePanel
+          timeMode={timeMode}
+          onTimeModeChange={onTimeModeChange}
+          weatherOverride={weatherOverride}
+          onWeatherOverrideChange={onWeatherOverrideChange}
+        />
+      )}
 
       {/* Di HP: logo di atas, navbar di bawahnya. Di layar lebar: sejajar. */}
+      {hudVisible && (
       <div className="relative flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         {/* Logo & tagline */}
         <div className="pointer-events-auto flex w-fit max-w-full items-center gap-2.5 rounded-[28px] bg-white/95 px-3 py-2 shadow-xl backdrop-blur sm:gap-3 sm:px-4 sm:py-2.5">
@@ -82,6 +108,40 @@ export function LandingOverlay({
             <span className="hidden sm:inline">Jelajahi Sekarang</span>
           </button>
         </nav>
+      </div>
+      )}
+
+      <div className="pointer-events-auto absolute bottom-4 right-3 flex flex-col gap-2 sm:bottom-6 sm:right-6">
+        <button
+          onClick={onToggleLabels}
+          aria-pressed={!labelsVisible}
+          title={labelsVisible ? "Sembunyikan label" : "Tampilkan label"}
+          className={`flex h-10 w-10 items-center justify-center rounded-full shadow-lg backdrop-blur transition cursor-pointer ${
+            labelsVisible ? "bg-white/95 text-slate-700 hover:bg-white" : "bg-blue-600 text-white"
+          }`}
+        >
+          <Tag className="h-4 w-4" />
+        </button>
+        <button
+          onClick={onToggleHud}
+          aria-pressed={!hudVisible}
+          title={hudVisible ? "Sembunyikan navigasi" : "Tampilkan navigasi"}
+          className={`flex h-10 w-10 items-center justify-center rounded-full shadow-lg backdrop-blur transition cursor-pointer ${
+            hudVisible ? "bg-white/95 text-slate-700 hover:bg-white" : "bg-blue-600 text-white"
+          }`}
+        >
+          {hudVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+        </button>
+        <button
+          onClick={() => {
+            if (document.fullscreenElement) void document.exitFullscreen();
+            else void document.documentElement.requestFullscreen();
+          }}
+          title="Layar penuh"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-slate-700 shadow-lg backdrop-blur transition hover:bg-white cursor-pointer"
+        >
+          <Maximize className="h-4 w-4" />
+        </button>
       </div>
 
       {activeMenu && (

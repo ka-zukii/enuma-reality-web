@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { playerPos } from "@/lib/playerPosition";
 import { useFrame } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
 import { type Socket } from "socket.io-client";
@@ -75,7 +76,7 @@ const POS_REPORT_INTERVAL = 0.15;
 const MAX_DT = 1 / 30;
 const DEFAULT_SPAWN: Vec3 = [0, 0, 3];
 /** Sesuai tepi paving 84x84 di CityEnvironment.tsx */
-const CITY_BOUNDS = { minX: -42, maxX: 42, minZ: -42, maxZ: 42 };
+const CITY_BOUNDS = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
 
 const noop = () => {};
 
@@ -150,11 +151,11 @@ function detectCityZone(x: number, z: number): string {
       return b.key === "enuma-hq" ? "enuma-reality-hq" : b.key;
     }
   }
-  if (x >= 4 && x <= 10 && z >= -18 && z <= 8) return "taman-kota";
-  if (z >= 11 && z <= 17) return "jalan-selatan";
-  if (z <= -19) return "jalan-utara";
-  if (x <= -31) return "jalan-barat";
-  if (x >= 31) return "jalan-timur";
+  // Batas jalan keliling (lihat ROAD di CityEnvironment.tsx)
+  if (z >= 18.5 && z <= 25.5) return "jalan-selatan";
+  if (z <= -26.5) return "jalan-utara";
+  if (x <= -40.5) return "jalan-barat";
+  if (x >= 40.5) return "jalan-timur";
   return "jalan-utama";
 }
 
@@ -392,6 +393,8 @@ export function OfficeScene({
     }
 
     const cur = localStateRef.current;
+    playerPos.x = cur.position[0];
+    playerPos.z = cur.position[2];
 
     // Petunjuk di atas kepala: naik saat trem berhenti dekat pintu, turun saat di dalam
     const hintGroup = tramHintGroupRef.current;
@@ -508,7 +511,10 @@ export function OfficeScene({
     environment = <InteriorEnvironment config={interior.config} />;
   } else {
     environment = (
-      <CityEnvironment onBuildingSelect={onBuildingSelect ?? noop} />
+      <CityEnvironment
+        onBuildingSelect={onBuildingSelect ?? noop}
+        showLabels={cameraMode !== "first"}
+      />
     );
   }
 

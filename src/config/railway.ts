@@ -2,8 +2,8 @@
 
 /** Konfigurasi rel & kereta. 1 unit ≈ 1 meter. */
 export const RAIL = {
-  halfX: 39.5,
-  halfZ: 39.5,
+  halfX: 52,
+  halfZ: 50,
   cornerRadius: 18,   // belokan lebar, supaya trem 10 m tidak menyerong
   arcSegments: 24,    // belokan halus
   gauge: 1.435,       // lebar rel standar Eropa (standard gauge)
@@ -81,7 +81,7 @@ export const CENTER_PATH = buildRoundedPath(
 export const LOOP_LENGTH = CENTER_PATH.length;
 
 export const STATIONS = [
-  { x: 0, z: 36, dwell: 4 }, // dwell = lama kereta berhenti (detik)
+  { x: 0, z: 50, dwell: 4 }, // dwell = lama kereta berhenti (detik)
 ];
 
 /** Jarak sepanjang jalur pusat untuk titik terdekat dari (x, z). */
@@ -159,7 +159,7 @@ export function loopPoint(s: number): LoopPoint {
  */
 export const PLATFORM = {
   x: 0,
-  z: 36.6,
+  z: 46.6,
   halfX: 13,   // panjang peron 26 m
   halfZ: 1.5,  // lebar peron 3 m
   height: 0.6, // permukaan peron (sama dengan TRAM.floorY)

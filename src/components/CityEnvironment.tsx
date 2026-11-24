@@ -1,283 +1,241 @@
-import type { BuildingInfo } from "@/config/buildings";
 import {
-  ModernBuilding,
+  BUILDINGS,
+  type BuildingConfig,
+  type BuildingInfo,
+  type BuildingKey,
+} from "@/config/buildings";
+import { CityModelBuilding } from "@/components/city/CityModelBuilding";
+import {
   LowPolyTree,
   LowPolyCar,
   StreetLamp,
   ParkBench,
 } from "@/components/CityProps";
 import { CityLife, Sway } from "@/components/city/CityLife";
-import { RailTrack } from "@/components/railway/RailTrack";
-import { TrainStation } from "@/components/railway/TrainStation";
 import { Tram } from "./railway/Tram";
+import { TrainStation } from "@/components/railway/TrainStation";
+import { RailTrack } from "@/components/railway/RailTrack";
+
+/* ============================================================
+   TATA LETAK KOTA (satu tempat untuk semua koordinat jalan)
+   Jalan keliling: barat x = -44, timur x = 44, utara z = -30, selatan z = 22.
+   Lebar jalan 7 m. Gedung di tengah, pusat z = -4.
+   ============================================================ */
+const ROAD = { west: -44, east: 44, north: -30, south: 22, width: 7 };
+
+const cityConfig = (key: BuildingKey): BuildingConfig => {
+  const found = BUILDINGS.find((b) => b.key === key);
+  if (!found) throw new Error(`Gedung tidak ditemukan: ${key}`);
+  return found;
+};
+
+/**
+ * Pusat bounding box setiap model (sebelum diputar) dan tinggi atapnya.
+ * Diukur dari file .glb. Interior tidak memakai nilai ini.
+ */
+const CITY_MODEL: Record<
+  string,
+  {
+    center: [number, number];
+    top: number;
+    position: [number, number];
+    /** Rotasi khusus kota: pintu depan menghadap +Z (jalan selatan) */
+    rotationY: number;
+  }
+> = {
+  "warung-madura": {
+    center: [0.33, -5.54],
+    top: 3.0,
+    position: [-30.85, -4],
+    rotationY: 0,
+  },
+  indomart: {
+    center: [-5.14, -0.04],
+    top: 5.05,
+    position: [-12.65, -4],
+    rotationY: Math.PI / 2,
+  },
+  "enuma-hq": {
+    center: [-1.46, 1.86],
+    top: 4.06,
+    position: [8.7, -4],
+    rotationY: -Math.PI / 2,
+  },
+  "lunara-cafe": {
+    center: [-12.5, -0.5],
+    top: 8.13,
+    position: [27.5, -4],
+    rotationY: -Math.PI / 2,
+  },
+};
+
+/** Teks info gedung untuk panel detail */
+const CITY_INFO: Record<string, BuildingInfo> = {
+  "warung-madura": {
+    buildingKey: "warung-madura",
+    name: "Warung Madura",
+    category: "Warung & Makanan Cepat",
+    desc: "Warung kecil dengan jajanan, minuman dingin, dan makanan siap saji untuk rekan kerja yang sedang lapar.",
+    status: "Buka · Jajanan & Minuman",
+  },
+  indomart: {
+    buildingKey: "indomart",
+    name: "Indomart",
+    category: "Minimarket",
+    desc: "Minimarket untuk kebutuhan harian, minuman dingin, dan camilan selama bekerja.",
+    status: "Buka · Kebutuhan Harian",
+  },
+  "enuma-hq": {
+    buildingKey: "enuma-hq",
+    name: "Kantor Enuma Technology",
+    category: "Pusat Virtual Workspace",
+    desc: "Gedung pusat virtual office 3 lantai lengkap dengan ruang kerja kolaboratif, auditorium meeting 3D, dan private booth.",
+    status: "Aktif · Server Utama",
+  },
+  "lunara-cafe": {
+    buildingKey: "lunara-cafe",
+    name: "Lunara Cafe",
+    category: "Cafe & Kopi",
+    desc: "Kafe hangat untuk ngopi, makan ringan, dan mengobrol santai bersama rekan kerja.",
+    status: "Buka · Menu Kopi & Pastry",
+  },
+};
 
 interface CityEnvironmentProps {
   onBuildingSelect: (building: BuildingInfo) => void;
+  /** false = sembunyikan label gedung (mode orang pertama) */
+  showLabels?: boolean;
 }
 
-export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
+const H = ROAD.width / 2; // setengah lebar jalan
+
+export function CityEnvironment({
+  onBuildingSelect,
+  showLabels = true,
+}: CityEnvironmentProps) {
+  const { west, east, north, south } = ROAD;
+  const roadLen = east - west + 2 * H; // panjang jalan horizontal
+  const sideLen = south - north + 2 * H; // panjang jalan vertikal
+  const sideZ = (north + south) / 2;
+
   return (
     <group>
       {/* ========================================================
-          LANTAI & GROUND DASAR KOTA BESAR (KELILING KOTA)
+          LANTAI & GROUND DASAR KOTA
           ======================================================== */}
-      {/* Padang Rumput Hijau Luas Luar Kota */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, -0.06, 0]}
-        receiveShadow
-      >
-        <planeGeometry args={[140, 140]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.06, 0]} receiveShadow>
+        <planeGeometry args={[160, 160]} />
         <meshStandardMaterial color="#86efac" roughness={0.9} />
       </mesh>
-
-      {/* Blok Utama Trotoar Paving Kota */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0.01, 0]}
-        receiveShadow
-      >
-        <planeGeometry args={[84, 84]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} receiveShadow>
+        <planeGeometry args={[100, 100]} />
         <meshStandardMaterial color="#e2e8f0" roughness={0.8} />
       </mesh>
 
       {/* ========================================================
-          JARINGAN JALAN RAYA KELILING KOTA (RING ROAD)
+          JALAN KELILING KOTA
           ======================================================== */}
-      {/* 1. Jalan Depan / Selatan (Horizontal: X: -38 s.d. 38, Z: 14) */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0.02, 14]}
-        receiveShadow
-      >
-        <planeGeometry args={[76, 7]} />
+      {/* Selatan */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, south]} receiveShadow>
+        <planeGeometry args={[roadLen, ROAD.width]} />
+        <meshStandardMaterial color="#334155" roughness={0.7} />
+      </mesh>
+      {/* Utara */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, north]} receiveShadow>
+        <planeGeometry args={[roadLen, ROAD.width]} />
+        <meshStandardMaterial color="#334155" roughness={0.7} />
+      </mesh>
+      {/* Barat */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[west, 0.02, sideZ]} receiveShadow>
+        <planeGeometry args={[ROAD.width, sideLen]} />
+        <meshStandardMaterial color="#334155" roughness={0.7} />
+      </mesh>
+      {/* Timur */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[east, 0.02, sideZ]} receiveShadow>
+        <planeGeometry args={[ROAD.width, sideLen]} />
         <meshStandardMaterial color="#334155" roughness={0.7} />
       </mesh>
 
-      {/* 2. Jalan Belakang / Utara (Horizontal: X: -38 s.d. 38, Z: -22) */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0.02, -22]}
-        receiveShadow
-      >
-        <planeGeometry args={[76, 7]} />
-        <meshStandardMaterial color="#334155" roughness={0.7} />
-      </mesh>
-
-      {/* 3. Jalan Samping Barat / Kiri (Vertikal: Z: -22 s.d. 14, X: -34.5) */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[-34.5, 0.02, -4]}
-        receiveShadow
-      >
-        <planeGeometry args={[7, 43]} />
-        <meshStandardMaterial color="#334155" roughness={0.7} />
-      </mesh>
-
-      {/* 4. Jalan Samping Timur / Kanan (Vertikal: Z: -22 s.d. 14, X: 34.5) */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[34.5, 0.02, -4]}
-        receiveShadow
-      >
-        <planeGeometry args={[7, 43]} />
-        <meshStandardMaterial color="#334155" roughness={0.7} />
-      </mesh>
-
-      {/* Marka Jalan Putih Putus-putus Jalan Selatan */}
-      {[-28, -20, -12, -4, 4, 12, 20, 28].map((x) => (
-        <mesh
-          key={`s-${x}`}
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[x, 0.025, 14]}
-        >
-          <planeGeometry args={[4, 0.3]} />
-          <meshBasicMaterial color="#ffffff" />
-        </mesh>
+      {/* Marka putus-putus jalan selatan & utara */}
+      {[-36, -28, -20, -12, -4, 4, 12, 20, 28, 36].map((x) => (
+        <group key={`hz-${x}`}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.025, south]}>
+            <planeGeometry args={[4, 0.3]} />
+            <meshBasicMaterial color="#ffffff" />
+          </mesh>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.025, north]}>
+            <planeGeometry args={[4, 0.3]} />
+            <meshBasicMaterial color="#ffffff" />
+          </mesh>
+        </group>
       ))}
 
-      {/* Marka Jalan Putih Putus-putus Jalan Utara */}
-      {[-28, -20, -12, -4, 4, 12, 20, 28].map((x) => (
-        <mesh
-          key={`n-${x}`}
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[x, 0.025, -22]}
-        >
-          <planeGeometry args={[4, 0.3]} />
-          <meshBasicMaterial color="#ffffff" />
-        </mesh>
-      ))}
-
-      {/* Marka Jalan Putih Putus-putus Jalan Barat & Timur */}
-      {[-16, -10, -4, 2, 8].map((z) => (
+      {/* Marka putus-putus jalan barat & timur */}
+      {[-20, -14, -8, -2, 4, 10, 16].map((z) => (
         <group key={`vert-${z}`}>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-34.5, 0.025, z]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[west, 0.025, z]}>
             <planeGeometry args={[0.3, 3.5]} />
             <meshBasicMaterial color="#ffffff" />
           </mesh>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[34.5, 0.025, z]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[east, 0.025, z]}>
             <planeGeometry args={[0.3, 3.5]} />
             <meshBasicMaterial color="#ffffff" />
           </mesh>
         </group>
       ))}
 
-      {/* Zebra Cross / Penyeberangan Pejalan Kaki */}
+      {/* Zebra cross di selatan dan utara */}
       {[-2, 0, 2].map((offset) => (
         <group key={`zebra-${offset}`}>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[offset, 0.026, 14]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[offset, 0.026, south]}>
             <planeGeometry args={[0.8, 5]} />
             <meshBasicMaterial color="#ffffff" />
           </mesh>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[offset, 0.026, -22]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[offset, 0.026, north]}>
             <planeGeometry args={[0.8, 5]} />
             <meshBasicMaterial color="#ffffff" />
           </mesh>
         </group>
       ))}
 
-      {/* Area Parkir Mobil Luas di Kanan Bawah */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[20, 0.022, 23]}
-        receiveShadow
-      >
+      {/* Area parkir di selatan jalan */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[20, 0.022, 30]} receiveShadow>
         <planeGeometry args={[26, 7.5]} />
         <meshStandardMaterial color="#1e293b" roughness={0.8} />
       </mesh>
       {[10, 14, 18, 22, 26, 30].map((x) => (
-        <mesh
-          key={`park-${x}`}
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[x, 0.026, 23]}
-        >
-          <planeGeometry args={[0.2, 6.5]} />
+        <mesh key={`park-${x}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.026, 30]}>
+          <planeGeometry args={[0.2, 5.5]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
       ))}
 
-      {/* Jalur Paving Pejalan Kaki / Promenade Tengah */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[6, 0.025, -4]}
-        receiveShadow
-      >
-        <planeGeometry args={[4.8, 28]} />
-        <meshStandardMaterial color="#cbd5e1" roughness={0.7} />
-      </mesh>
-
       {/* ========================================================
-          BARISAN BANGUNAN PERKANTORAN MODERN (RESCALED 1:1 HUMAN)
+          EMPAT GEDUNG UTAMA: model .glb yang sama dengan interiornya
           ======================================================== */}
+      {(["warung-madura", "indomart", "enuma-hq", "lunara-cafe"] as const).map(
+        (key) => (
+          <CityModelBuilding
+            key={key}
+            config={cityConfig(key)}
+            info={CITY_INFO[key]}
+            onSelect={onBuildingSelect}
+            position={[cityConfig(key).footprint.x, cityConfig(key).footprint.z]}
+            center={CITY_MODEL[key].center}
+            top={CITY_MODEL[key].top}
+            showLabel={showLabels}
+          />
+        ),
+      )}
 
-      {/* ========================================================
-          EMPAT GEDUNG UTAMA (BARIS DEPAN, z = -4)
-          ======================================================== */}
-
-      {/* 1. Warung Madura (paling kiri) */}
-      <ModernBuilding
-        position={[-25, 0, -4]}
-        size={[9, 6.5, 9]}
-        color="#fef3c7"
-        roofColor="#7c2d12"
-        accentColor="#f97316"
-        name="Warung Madura"
-        signText="WARUNG MADURA"
-        subtitle="Jajanan & Minuman"
-        tag="WARUNG"
-        variant="shop"
-        badgeIcon="shop"
-        onClick={() =>
-          onBuildingSelect({
-            buildingKey: "warung-madura",
-            name: "Warung Madura",
-            category: "Warung & Makanan Cepat",
-            desc: "Warung kecil dengan jajanan, minuman dingin, dan makanan siap saji untuk rekan kerja yang sedang lapar.",
-            status: "Buka · Jajanan & Minuman",
-          })
-        }
-      />
-
-      {/* 2. Indomart */}
-      <ModernBuilding
-        position={[-14, 0, -4]}
-        size={[9, 6.5, 10]}
-        color="#ffffff"
-        roofColor="#1e3a8a"
-        accentColor="#dc2626"
-        name="Indomart"
-        signText="INDOMART"
-        subtitle="Minimarket & Kebutuhan Harian"
-        tag="MINIMARKET"
-        variant="shop"
-        badgeIcon="shop"
-        onClick={() =>
-          onBuildingSelect({
-            buildingKey: "indomart",
-            name: "Indomart",
-            category: "Minimarket",
-            desc: "Minimarket untuk kebutuhan harian, minuman dingin, dan camilan selama bekerja.",
-            status: "Buka · Kebutuhan Harian",
-          })
-        }
-      />
-
-      {/* 3. Kantor Enuma Technology (tengah, paling tinggi) */}
-      <ModernBuilding
-        position={[-1, 0, -4]}
-        size={[13, 12, 11]}
-        color="#ffffff"
-        roofColor="#0f172a"
-        accentColor="#2563eb"
-        name="Kantor Enuma Technology"
-        subtitle="Pusat Kantor Virtual"
-        tag="ENUMA TECHNOLOGY"
-        variant="office"
-        badgeIcon="office"
-        badgePosition={[0, 14.5, 0]}
-        onClick={() =>
-          onBuildingSelect({
-            buildingKey: "enuma-hq",
-            name: "Kantor Enuma Technology",
-            category: "Pusat Virtual Workspace",
-            desc: "Gedung pusat virtual office 3 lantai lengkap dengan ruang kerja kolaboratif, auditorium meeting 3D, dan private booth.",
-            status: "Aktif · Server Utama",
-          })
-        }
-      />
-
-      {/* 4. Lunara Cafe (paling kanan) */}
-      <ModernBuilding
-        position={[14, 0, -4]}
-        size={[10, 8, 10]}
-        color="#fdf2f8"
-        roofColor="#831843"
-        accentColor="#f472b6"
-        name="Lunara Cafe"
-        signText="LUNARA"
-        subtitle="Kopi & Pastry"
-        tag="CAFE"
-        variant="cafe"
-        badgeIcon="cafe"
-        onClick={() =>
-          onBuildingSelect({
-            buildingKey: "lunara-cafe",
-            name: "Lunara Cafe",
-            category: "Cafe & Kopi",
-            desc: "Kafe hangat untuk ngopi, makan ringan, dan mengobrol santai bersama rekan kerja.",
-            status: "Buka · Menu Kopi & Pastry",
-          })
-        }
-      />
-
-      {/* Bangunan Pendukung di Bagian Belakang Seberang Jalan Utara */}
-      {[-24, -10, 10, 24].map((x) => (
-        <group key={`back-${x}`} position={[x, 0, -32]}>
+      {/* Gedung pendukung di belakang jalan utara */}
+      {[-30, -12, 12, 30].map((x) => (
+        <group key={`back-${x}`} position={[x, 0, -40]}>
           <mesh position={[0, 5, 0]} castShadow receiveShadow>
             <boxGeometry args={[10, 10, 9]} />
             <meshStandardMaterial color="#f1f5f9" roughness={0.6} />
           </mesh>
-          <mesh position={[0, 10.2, 0]}>
+          <mesh position={[0, 10.2, 0]} castShadow>
             <boxGeometry args={[10.4, 0.4, 9.4]} />
             <meshStandardMaterial color="#334155" />
           </mesh>
@@ -285,75 +243,70 @@ export function CityEnvironment({ onBuildingSelect }: CityEnvironmentProps) {
       ))}
 
       {/* ========================================================
-          AREA TAMAN KOTA, BANGKU & PEPOHONAN ASRI
+          POHON, BANGKU, DAN SEMAK
           ======================================================== */}
-      {/* Pepohonan di Sepanjang Jalur Pejalan Kaki & Taman (bergoyang pelan) */}
-      <Sway position={[3.5, 0, -12]} phase={0}>
-        <LowPolyTree position={[0, 0, 0]} scale={1.8} />
-      </Sway>
-      <Sway position={[7, 0, -13]} phase={1.7}>
-        <LowPolyTree position={[0, 0, 0]} scale={2.1} />
-      </Sway>
-      <Sway position={[3.5, 0, -1]} phase={3.1}>
-        <LowPolyTree position={[0, 0, 0]} scale={1.7} />
-      </Sway>
-      <Sway position={[8.5, 0, 5]} phase={4.4}>
-        <LowPolyTree position={[0, 0, 0]} scale={2.0} />
-      </Sway>
-
-      {/* Pohon di Sudut-sudut Kota */}
-      <Sway position={[-28, 0, -14]} phase={0.8}>
+      {/* Pohon di sudut kota, di luar gedung */}
+      <Sway position={[-39, 0, -14]} phase={0.8}>
         <LowPolyTree position={[0, 0, 0]} scale={2.2} />
       </Sway>
-      <Sway position={[-28, 0, 6]} phase={2.4}>
+      <Sway position={[-39, 0, 8]} phase={2.4}>
         <LowPolyTree position={[0, 0, 0]} scale={2.0} />
       </Sway>
-      <Sway position={[30, 0, -12]} phase={3.9}>
+      <Sway position={[38, 0, -12]} phase={3.9}>
         <LowPolyTree position={[0, 0, 0]} scale={2.3} />
       </Sway>
-      <Sway position={[30, 0, 6]} phase={5.2}>
+      <Sway position={[38, 0, 8]} phase={5.2}>
+        <LowPolyTree position={[0, 0, 0]} scale={2.1} />
+      </Sway>
+      {/* Pohon di area utara, di depan gedung belakang */}
+      <Sway position={[-8, 0, -23]} phase={1.1}>
+        <LowPolyTree position={[0, 0, 0]} scale={2.0} />
+      </Sway>
+      <Sway position={[6, 0, -23]} phase={2.9}>
+        <LowPolyTree position={[0, 0, 0]} scale={1.8} />
+      </Sway>
+      <Sway position={[24, 0, -23]} phase={4.2}>
         <LowPolyTree position={[0, 0, 0]} scale={2.1} />
       </Sway>
 
-      {/* Bangku Taman Menghadap Jalur Utama */}
-      <ParkBench position={[6, 0, 8]} rotation={[0, Math.PI, 0]} />
-      <ParkBench position={[6, 0, -16]} rotation={[0, 0, 0]} />
-      <ParkBench position={[-8, 0, 8]} rotation={[0, Math.PI, 0]} />
-      <ParkBench position={[14, 0, 8]} rotation={[0, Math.PI, 0]} />
+      {/* Bangku di trotoar selatan dan utara */}
+      <ParkBench position={[-8, 0, 13.5]} rotation={[0, Math.PI, 0]} />
+      <ParkBench position={[6, 0, 13.5]} rotation={[0, Math.PI, 0]} />
+      <ParkBench position={[14, 0, 13.5]} rotation={[0, Math.PI, 0]} />
+      <ParkBench position={[28, 0, 13.5]} rotation={[0, Math.PI, 0]} />
+      <ParkBench position={[6, 0, -23]} rotation={[0, 0, 0]} />
 
-      {/* Tanaman Semak Hias */}
-      {[-9, -5, 12, 16].map((x) => (
-        <mesh key={`bush-${x}`} position={[x, 0.45, 7.5]} castShadow>
+      {/* Semak hias di trotoar selatan */}
+      {[-16, -4, 12, 20].map((x) => (
+        <mesh key={`bush-${x}`} position={[x, 0.45, 16.5]} castShadow>
           <sphereGeometry args={[0.65, 8, 8]} />
           <meshStandardMaterial color="#16a34a" roughness={0.8} />
         </mesh>
       ))}
 
       {/* ========================================================
-          KENDARAAN / MOBIL PARKIR
-          (mobil yang melaju di jalan dikelola CityLife)
+          MOBIL PARKIR (mobil yang melaju dikelola CityLife)
           ======================================================== */}
-      {/* Mobil Putih & Biru Terparkir di Area Parkir */}
-      <LowPolyCar position={[14, 0, 23]} rotation={[0, 0, 0]} color="#f8fafc" />
-      <LowPolyCar position={[22, 0, 23]} rotation={[0, 0, 0]} color="#2563eb" />
-      <LowPolyCar position={[28, 0, 23]} rotation={[0, 0, 0]} color="#0f172a" />
+      <LowPolyCar position={[14, 0, 30]} rotation={[0, 0, 0]} color="#f8fafc" />
+      <LowPolyCar position={[22, 0, 30]} rotation={[0, 0, 0]} color="#2563eb" />
+      <LowPolyCar position={[28, 0, 30]} rotation={[0, 0, 0]} color="#0f172a" />
 
       {/* ========================================================
-          LAMPU JALAN KELILING KOTA
+          LAMPU JALAN
           ======================================================== */}
-      <StreetLamp position={[-18, 0, 10]} />
-      <StreetLamp position={[-2, 0, 10]} />
-      <StreetLamp position={[14, 0, 10]} />
-      <StreetLamp position={[-18, 0, -18]} />
-      <StreetLamp position={[-2, 0, -18]} />
-      <StreetLamp position={[14, 0, -18]} />
+      <StreetLamp position={[-32, 0, 13.5]} />
+      <StreetLamp position={[-4, 0, 13.5]} />
+      <StreetLamp position={[24, 0, 13.5]} />
+      <StreetLamp position={[-32, 0, -23.5]} />
+      <StreetLamp position={[-4, 0, -23.5]} />
+      <StreetLamp position={[24, 0, -23.5]} />
 
       {/* ========================================================
           KEHIDUPAN KOTA: pejalan kaki, lalu lintas, burung, awan, cahaya
           ======================================================== */}
       <CityLife />
       <RailTrack />
-      <TrainStation position={[0, 0, 36.6]} />
+      <TrainStation position={[0, 0, 46.6]} />
       <Tram />
     </group>
   );

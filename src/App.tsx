@@ -6,6 +6,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { CITY_DOORS } from "@/config/doors";
+import { doorReady } from "@/lib/playerPosition";
 import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { AlertCircle, Building2, LogOut, X } from "lucide-react";
@@ -209,8 +211,11 @@ function AppContent() {
       setPromptBuilding(null);
     }
 
+    // Popup hanya muncul jika pintu gedung sudah terbuka penuh (gedung tanpa pintu geser langsung)
     const near = BUILDINGS.find(
-      (b) => distXZ(pos, b.entrance) <= b.entranceRadius,
+      (b) =>
+        distXZ(pos, b.entrance) <= b.entranceRadius &&
+        (CITY_DOORS[b.key] === undefined || doorReady[b.key] === true),
     );
     if (!near) {
       dismissedKeyRef.current = null; // sudah menjauh, popup boleh muncul lagi
@@ -423,7 +428,9 @@ function AppContent() {
                 onZoneChange={setCurrentZone}
                 isChatFocused={isChatFocused || showJoinModal}
                 initialPosition={cityReturnPosRef.current}
-                onBuildingSelect={setSelectedBuilding}
+                onBuildingSelect={() => {
+                  /* klik gedung/label tidak membuka apa pun; masuk lewat popup di pintu */
+                }}
                 onLocalPositionChange={handleLocalPosition}
                 cameraMode={cameraMode}
               />

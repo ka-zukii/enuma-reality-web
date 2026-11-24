@@ -24,8 +24,8 @@ function tri(t: number): number {
  * Berjalan bolak-balik di trotoar, sejajar dengan bangunan.
  * ============================================================ */
 const WALK_LANES = [
-  { z: 5, minX: -32, maxX: 32 }, // trotoar depan gedung
-  { z: -10.5, minX: -32, maxX: 32 }, // trotoar belakang gedung
+  { z: 14.5, minX: -36, maxX: 36 }, // trotoar depan gedung
+  { z: -21.5, minX: -36, maxX: 36 }, // trotoar belakang gedung
 ];
 const SHIRTS = [
   "#ef4444",
@@ -182,12 +182,12 @@ interface CarSpec {
 }
 
 const CARS: CarSpec[] = [
-  // Jalan selatan (z 10.5 s.d. 17.5), dua jalur
+  // Jalan selatan (z 18.5 s.d. 25.5), dua jalur
   {
     axis: "x",
-    fixed: 15.8,
-    from: -40,
-    to: 40,
+    fixed: 23.8,
+    from: -48,
+    to: 48,
     speed: 3.6,
     dir: 1,
     offset: 0.0,
@@ -195,9 +195,9 @@ const CARS: CarSpec[] = [
   },
   {
     axis: "x",
-    fixed: 15.8,
-    from: -40,
-    to: 40,
+    fixed: 23.8,
+    from: -48,
+    to: 48,
     speed: 3.2,
     dir: 1,
     offset: 0.5,
@@ -205,20 +205,20 @@ const CARS: CarSpec[] = [
   },
   {
     axis: "x",
-    fixed: 12.2,
-    from: -40,
-    to: 40,
+    fixed: 20.2,
+    from: -48,
+    to: 48,
     speed: 3.8,
     dir: -1,
     offset: 0.25,
     color: CAR_COLORS[2],
   },
-  // Jalan utara (z -25.5 s.d. -18.5)
+  // Jalan utara (z -33.5 s.d. -26.5)
   {
     axis: "x",
-    fixed: -23.2,
-    from: -40,
-    to: 40,
+    fixed: -31.2,
+    from: -48,
+    to: 48,
     speed: 3.4,
     dir: 1,
     offset: 0.1,
@@ -226,20 +226,20 @@ const CARS: CarSpec[] = [
   },
   {
     axis: "x",
-    fixed: -20.8,
-    from: -40,
-    to: 40,
+    fixed: -28.8,
+    from: -48,
+    to: 48,
     speed: 3.9,
     dir: -1,
     offset: 0.6,
     color: CAR_COLORS[4],
   },
-  // Jalan barat dan timur (x -38 s.d. -31 dan 31 s.d. 38), arah Z
+  // Jalan barat dan timur, arah Z
   {
     axis: "z",
-    fixed: -33.0,
-    from: -22,
-    to: 14,
+    fixed: -42.5,
+    from: -30,
+    to: 22,
     speed: 3.0,
     dir: 1,
     offset: 0.3,
@@ -247,9 +247,9 @@ const CARS: CarSpec[] = [
   },
   {
     axis: "z",
-    fixed: 33.0,
-    from: -22,
-    to: 14,
+    fixed: 42.5,
+    from: -30,
+    to: 22,
     speed: 3.3,
     dir: -1,
     offset: 0.7,

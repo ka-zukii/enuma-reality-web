@@ -111,8 +111,8 @@ export const BUILDINGS: BuildingConfig[] = [
   {
     key: "warung-madura",
     name: "Warung Madura",
-    footprint: { x: -25, z: -4, w: 9, d: 9 },
-    entrance: [-25, 0, 1.7],
+    footprint: { x: -30.85, z: 3.4, w: 8.3, d: 10.3 },
+    entrance: [-30.85, 0, 9.15],
     entranceRadius: 3,
     interior: {
       name: "Warung Madura",
@@ -141,8 +141,8 @@ export const BUILDINGS: BuildingConfig[] = [
   {
     key: "indomart",
     name: "Indomart",
-    footprint: { x: -14, z: -4, w: 9, d: 10 },
-    entrance: [-14, 0, 2.2],
+    footprint: { x: -12.65, z: -6.5, w: 20.1, d: 30.1 },
+    entrance: [-12.65, 0, 9.15],
     entranceRadius: 3,
     interior: {
       name: "Indomart",
@@ -179,8 +179,8 @@ export const BUILDINGS: BuildingConfig[] = [
   {
     key: "enuma-hq",
     name: "Kantor Enuma Technology",
-    footprint: { x: -1, z: -4, w: 13, d: 11 },
-    entrance: [-1, 0, 2.7],
+    footprint: { x: 8.7, z: -4, w: 14.6, d: 25.1 },
+    entrance: [8.7, 0, 9.15],
     entranceRadius: 3,
     interior: {
       name: "Kantor Enuma Technology",
@@ -228,8 +228,8 @@ export const BUILDINGS: BuildingConfig[] = [
   {
     key: "lunara-cafe",
     name: "Lunara Cafe",
-    footprint: { x: 14, z: -4, w: 10, d: 10 },
-    entrance: [14, 0, 2.2],
+    footprint: { x: 27.5, z: -4, w: 15, d: 25.1 },
+    entrance: [27.5, 0, 9.15],
     entranceRadius: 3,
     interior: {
       name: "Lunara Cafe",

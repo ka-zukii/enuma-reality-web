@@ -17,6 +17,7 @@ import { AlertCircle, Building2, LogOut, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useOfficeSocket } from "@/hooks/useOfficeSocket";
 import { GuestJoinModal } from "@/components/entry/GuestJoinModal";
+import { AccountBadge } from "@/components/account/AccountBadge";
 import {
   LandingOverlay,
   type LandingMenuKey,
@@ -173,6 +174,20 @@ function AppContent() {
 
   // Tampilan sebelum masuk (overview kota + modal nama)
   const [showGuestModal, setShowGuestModal] = useState(false);
+  // Akun yang login (bukan anonim/tamu) melewati popup nama dan langsung masuk game
+  const isLoggedIn = !!session && !session.user.is_anonymous;
+  const [enteredGame, setEnteredGame] = useState(false);
+  useEffect(() => {
+    if (!session) {
+      setEnteredGame(false);
+      return;
+    }
+    if (isLoggedIn && showGuestModal) {
+      // Login dari popup: langsung masuk game
+      setEnteredGame(true);
+      setShowGuestModal(false);
+    }
+  }, [session, isLoggedIn, showGuestModal]);
   const [landingMenu, setLandingMenu] = useState<LandingMenuKey | null>(null);
   const [landingView, setLandingView] = useState("Beranda");
   const [timeMode, setTimeMode] = useState<TimeMode>("live");
@@ -389,8 +404,8 @@ function AppContent() {
     );
   }
 
-  if (!session) {
-    // Belum masuk: tampilkan overview kota sebagai latar, lalu minta nama tamu
+  if (!session || (isLoggedIn && !enteredGame)) {
+    // Belum masuk atau akun login belum menekan Jelajahi: tampilkan overview kota sebagai latar
     return (
       <div className="relative w-screen h-screen overflow-hidden bg-slate-100 select-none font-sans">
         <SceneCanvas camera={EXTERIOR_CAMERA}>
@@ -420,7 +435,7 @@ function AppContent() {
           onMenuClose={() => setLandingMenu(null)}
           activeView={landingView}
           onViewSelect={setLandingView}
-          onExplore={() => setShowGuestModal(true)}
+          onExplore={() => (isLoggedIn ? setEnteredGame(true) : setShowGuestModal(true))}
           timeMode={timeMode}
           onTimeModeChange={setTimeMode}
           weatherOverride={weatherOverride}
@@ -430,6 +445,8 @@ function AppContent() {
           hudVisible={hudVisible}
           onToggleHud={() => setHudVisible((v) => !v)}
         />
+
+        <AccountBadge session={session} hidden={!hudVisible} />
 
         {showGuestModal && (
           <GuestJoinModal onClose={() => setShowGuestModal(false)} />
@@ -542,6 +559,7 @@ function AppContent() {
       )}
 
       {/* HUD sama di kota maupun interior */}
+      <AccountBadge session={session} position="game" />
       <VOfficeOverlay
         currentUserId={session.user.id}
         onlineCount={remotePlayers.length + 1}
@@ -560,7 +578,7 @@ function AppContent() {
         workspaceName={currentBuilding?.interior.name ?? workspace?.name}
         userStatus={localStatus}
         onStatusChange={handleStatusChange}
-        onExit={() => void signOut()}
+        onExit={() => (isLoggedIn ? setEnteredGame(false) : void signOut())}
       />
 
       <JoinWorkspaceModal

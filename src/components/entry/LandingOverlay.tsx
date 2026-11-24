@@ -1,4 +1,5 @@
-import { Compass, Eye, EyeOff, Maximize, Tag } from "lucide-react";
+import { useState } from "react";
+import { Compass, Eye, EyeOff, Maximize, Smartphone, Tag, X } from "lucide-react";
 import type { TimeMode } from "@/components/WorldLighting";
 import type { WeatherOverride } from "@/components/RainEffect";
 import { SidePanel } from "@/components/entry/SidePanel";
@@ -46,6 +47,8 @@ export function LandingOverlay({
   hudVisible = true,
   onToggleHud,
 }: LandingOverlayProps) {
+  // Popup ponsel di kanan bawah (kerangka, isi akan dikembangkan)
+  const [phoneOpen, setPhoneOpen] = useState(false);
   const handleMenu = (key: LandingMenuKey) => {
     if (activeMenu === key) onMenuClose?.();
     else onMenuSelect(key);
@@ -113,6 +116,16 @@ export function LandingOverlay({
 
       <div className="pointer-events-auto absolute bottom-4 right-3 flex flex-col gap-2 sm:bottom-6 sm:right-6">
         <button
+          onClick={() => setPhoneOpen((v) => !v)}
+          aria-pressed={phoneOpen}
+          title="Ponsel"
+          className={`flex h-10 w-10 items-center justify-center rounded-full shadow-lg backdrop-blur transition cursor-pointer ${
+            phoneOpen ? "bg-blue-600 text-white" : "bg-white/95 text-slate-700 hover:bg-white"
+          }`}
+        >
+          <Smartphone className="h-4 w-4" />
+        </button>
+        <button
           onClick={onToggleLabels}
           aria-pressed={!labelsVisible}
           title={labelsVisible ? "Sembunyikan label" : "Tampilkan label"}
@@ -143,6 +156,25 @@ export function LandingOverlay({
           <Maximize className="h-4 w-4" />
         </button>
       </div>
+
+      {phoneOpen && (
+        <div className="pointer-events-auto absolute bottom-4 right-16 z-40 flex h-[min(440px,70vh)] w-[min(260px,70vw)] flex-col overflow-hidden rounded-[28px] border-[6px] border-slate-900 bg-white shadow-2xl sm:bottom-6 sm:right-20">
+          <div className="flex items-center justify-between bg-slate-900 px-4 py-2 text-xs font-bold text-white">
+            <span>Ponsel</span>
+            <button
+              onClick={() => setPhoneOpen(false)}
+              aria-label="Tutup ponsel"
+              className="rounded-full p-1 transition hover:bg-white/10 cursor-pointer"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-slate-500">
+            {/* Isi ponsel akan dikembangkan di sini */}
+            Segera hadir
+          </div>
+        </div>
+      )}
 
       {activeMenu && (
         <InfoModal kind={activeMenu} onClose={() => onMenuClose?.()} />

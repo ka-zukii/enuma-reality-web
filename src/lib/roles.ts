@@ -26,7 +26,7 @@ export const ROLE_META: Record<MemberRole, RoleMeta> = {
     gradient: "from-violet-500 to-fuchsia-500",
   },
   MEMBER: {
-    label: "Anggota",
+    label: "Warga",
     icon: Briefcase,
     gradient: "from-cyan-400 to-blue-500",
   },

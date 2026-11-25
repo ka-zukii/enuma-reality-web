@@ -622,6 +622,13 @@ export function OfficeScene({
         deltaVec.current.subVectors(controls.target, prevTarget);
         camera.position.add(deltaVec.current);
       }
+
+      // Cegah kamera menembus tanah/lantai saat diarahkan ke atas (melihat langit)
+      const minCamY = cur.position[1] + 0.35;
+      if (camera.position.y < minCamY) {
+        camera.position.y = minCamY;
+      }
+
       controls.update();
     }
 
@@ -702,7 +709,7 @@ export function OfficeScene({
         ref={controlsRef}
         enableDamping
         dampingFactor={0.07}
-        maxPolarAngle={Math.PI / 2.1}
+        maxPolarAngle={Math.PI * 0.92}
         minDistance={cameraMode === "first" ? 0.6 : 0.3}
         maxDistance={cameraMode === "first" ? 0.6 : isInterior ? 14 : 48}
         enableZoom={cameraMode !== "first"}

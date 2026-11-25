@@ -140,64 +140,132 @@ export function BusStop({
 }) {
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
-      {/* Platform */}
-      <mesh position={[0, 0.04, 0]} receiveShadow>
-        <boxGeometry args={[4.2, 0.08, 1.6]} />
+      {/* Platform peron halte dengan tepi kuning */}
+      <mesh position={[0, 0.05, 0]} receiveShadow>
+        <boxGeometry args={[4.6, 0.1, 1.8]} />
+        <meshStandardMaterial color="#94a3b8" roughness={0.85} />
+      </mesh>
+      <mesh position={[0, 0.105, 0]} receiveShadow>
+        <boxGeometry args={[4.5, 0.015, 1.7]} />
         <meshStandardMaterial color="#cbd5e1" roughness={0.8} />
       </mesh>
-      {/* Tiang penyangga */}
-      {[-1.8, 1.8].map((x) => (
-        <mesh key={x} position={[x, 1.25, -0.55]}>
-          <cylinderGeometry args={[0.06, 0.06, 2.4, 10]} />
+      <mesh position={[0, 0.115, 0.78]}>
+        <boxGeometry args={[4.4, 0.01, 0.14]} />
+        <meshStandardMaterial color="#facc15" roughness={0.5} />
+      </mesh>
+
+      {/* Tiang baja utama */}
+      {[-1.95, 0, 1.95].map((x) => (
+        <group key={x} position={[x, 0.1, -0.68]}>
+          <mesh position={[0, 1.2, 0]} castShadow>
+            <boxGeometry args={[0.1, 2.4, 0.1]} />
+            <meshStandardMaterial color="#0f172a" metalness={0.6} roughness={0.3} />
+          </mesh>
+          <mesh position={[0, 2.34, 0.65]} castShadow>
+            <boxGeometry args={[0.08, 0.08, 1.4]} />
+            <meshStandardMaterial color="#1e293b" metalness={0.6} roughness={0.3} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Dinding kaca belakang & samping kiri */}
+      <mesh position={[0, 1.3, -0.7]}>
+        <boxGeometry args={[3.8, 1.95, 0.05]} />
+        <meshStandardMaterial color="#bae6fd" transparent opacity={0.38} roughness={0.1} />
+      </mesh>
+      <mesh position={[-1.95, 1.3, 0.02]}>
+        <boxGeometry args={[0.05, 1.95, 1.35]} />
+        <meshStandardMaterial color="#bae6fd" transparent opacity={0.38} roughness={0.1} />
+      </mesh>
+
+      {/* Kotak lightbox rute & informasi di sisi kanan */}
+      <group position={[1.95, 1.28, 0.02]}>
+        <mesh castShadow>
+          <boxGeometry args={[0.18, 1.95, 1.15]} />
+          <meshStandardMaterial color="#0f172a" metalness={0.4} roughness={0.4} />
+        </mesh>
+        <mesh position={[-0.095, 0.05, 0]} rotation={[0, -Math.PI / 2, 0]}>
+          <planeGeometry args={[0.96, 1.6]} />
           <meshStandardMaterial
-            color="#1e293b"
-            metalness={0.6}
-            roughness={0.3}
+            color="#e0f2fe"
+            emissive="#38bdf8"
+            emissiveIntensity={isNight ? 0.95 : 0.35}
           />
         </mesh>
-      ))}
-      {/* Dinding kaca belakang */}
-      <mesh position={[0, 1.25, -0.58]}>
-        <boxGeometry args={[3.5, 1.8, 0.06]} />
-        <meshStandardMaterial
-          color="#bae6fd"
-          transparent
-          opacity={0.45}
-          roughness={0.1}
-        />
-      </mesh>
-      {/* Atap halte */}
-      <mesh position={[0, 2.48, 0.05]} rotation={[0.08, 0, 0]} castShadow>
-        <boxGeometry args={[4.4, 0.1, 1.8]} />
-        <meshStandardMaterial
-          color="#0284c7"
-          roughness={0.35}
-          metalness={0.3}
-        />
-      </mesh>
-      {/* Strip lampu atap halte saat malam */}
-      <mesh position={[0, 2.41, 0.2]}>
-        <boxGeometry args={[3.6, 0.03, 0.12]} />
-        <meshStandardMaterial
-          color={isNight ? "#e0f2fe" : "#94a3b8"}
-          emissive="#38bdf8"
-          emissiveIntensity={isNight ? 1.8 : 0}
-        />
-      </mesh>
-      {/* Kursi tunggu */}
-      <mesh position={[0, 0.5, -0.25]}>
-        <boxGeometry args={[2.6, 0.08, 0.45]} />
-        <meshStandardMaterial color="#f59e0b" roughness={0.5} />
-      </mesh>
-      {/* Tiang rambu halte */}
-      <mesh position={[2.35, 1.3, 0.4]}>
-        <cylinderGeometry args={[0.04, 0.04, 2.6, 8]} />
-        <meshStandardMaterial color="#334155" metalness={0.6} />
-      </mesh>
-      <mesh position={[2.35, 2.35, 0.4]}>
-        <boxGeometry args={[0.45, 0.45, 0.06]} />
-        <meshStandardMaterial color="#2563eb" />
-      </mesh>
+      </group>
+
+      {/* Atap halte modern berlapis */}
+      <group position={[0, 2.52, 0.05]} rotation={[0.06, 0, 0]}>
+        <mesh castShadow>
+          <boxGeometry args={[4.7, 0.12, 2.0]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.45} metalness={0.35} />
+        </mesh>
+        {/* List biru Enuma di depan atap */}
+        <mesh position={[0, 0, 1.01]}>
+          <boxGeometry args={[4.72, 0.09, 0.04]} />
+          <meshStandardMaterial color="#2563eb" emissive="#1d4ed8" emissiveIntensity={0.35} />
+        </mesh>
+        {/* Skylight kaca atas */}
+        <mesh position={[0, 0.07, 0]}>
+          <boxGeometry args={[3.4, 0.03, 0.8]} />
+          <meshStandardMaterial color="#38bdf8" transparent opacity={0.5} />
+        </mesh>
+        {/* Strip lampu LED bawah atap */}
+        <mesh position={[0, -0.07, 0.15]}>
+          <boxGeometry args={[3.8, 0.025, 0.14]} />
+          <meshStandardMaterial
+            color={isNight ? "#fef9c3" : "#cbd5e1"}
+            emissive="#fef08a"
+            emissiveIntensity={isNight ? 1.5 : 0}
+          />
+        </mesh>
+      </group>
+
+      {/* Kursi tunggu 3 dudukan berkaki lengkap */}
+      <group position={[-0.2, 0.1, -0.32]}>
+        {[-1.0, 1.0].map((lx) => (
+          <mesh key={lx} position={[lx, 0.21, 0]} castShadow>
+            <boxGeometry args={[0.07, 0.42, 0.36]} />
+            <meshStandardMaterial color="#1e293b" metalness={0.5} />
+          </mesh>
+        ))}
+        <mesh position={[0, 0.42, 0]}>
+          <boxGeometry args={[2.3, 0.05, 0.1]} />
+          <meshStandardMaterial color="#1e293b" metalness={0.5} />
+        </mesh>
+        {[-0.75, 0, 0.75].map((sx) => (
+          <group key={sx} position={[sx, 0.46, 0]}>
+            <mesh position={[0, 0, 0.04]} castShadow>
+              <boxGeometry args={[0.64, 0.05, 0.42]} />
+              <meshStandardMaterial color="#f59e0b" roughness={0.45} />
+            </mesh>
+            <mesh position={[0, 0.22, -0.17]} rotation={[-0.14, 0, 0]} castShadow>
+              <boxGeometry args={[0.64, 0.36, 0.045]} />
+              <meshStandardMaterial color="#f59e0b" roughness={0.45} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+
+      {/* Tiang rambu & indikator digital halte */}
+      <group position={[2.48, 0.1, 0.55]}>
+        <mesh position={[0, 1.35, 0]} castShadow>
+          <cylinderGeometry args={[0.045, 0.05, 2.7, 10]} />
+          <meshStandardMaterial color="#1e293b" metalness={0.6} />
+        </mesh>
+        <mesh position={[0, 2.55, 0]} castShadow>
+          <boxGeometry args={[0.52, 0.52, 0.08]} />
+          <meshStandardMaterial color="#2563eb" />
+        </mesh>
+        <mesh position={[0, 2.1, 0]}>
+          <boxGeometry args={[0.42, 0.22, 0.08]} />
+          <meshStandardMaterial
+            color="#0f172a"
+            emissive="#22c55e"
+            emissiveIntensity={isNight ? 0.8 : 0.3}
+          />
+        </mesh>
+      </group>
     </group>
   );
 }
@@ -260,19 +328,37 @@ export function CafeTable({
         <coneGeometry args={[1.25, 0.45, 12]} />
         <meshStandardMaterial color={umbrellaColor} roughness={0.6} />
       </mesh>
-      {/* 2 kursi */}
-      {[-0.78, 0.78].map((x) => (
-        <group key={x} position={[x, 0, 0]}>
-          <mesh position={[0, 0.22, 0]}>
-            <cylinderGeometry args={[0.04, 0.04, 0.44, 8]} />
-            <meshStandardMaterial color="#334155" />
-          </mesh>
-          <mesh position={[0, 0.45, 0]}>
-            <cylinderGeometry args={[0.24, 0.24, 0.04, 12]} />
-            <meshStandardMaterial color="#b45309" roughness={0.6} />
-          </mesh>
-        </group>
-      ))}
+      {/* 2 kursi bistro bersandaran */}
+      {[-0.8, 0.8].map((x) => {
+        const dir = x < 0 ? -1 : 1;
+        return (
+          <group key={x} position={[x, 0, 0]}>
+            {/* Tapak bawah & tiang kursi */}
+            <mesh position={[0, 0.02, 0]}>
+              <cylinderGeometry args={[0.2, 0.22, 0.04, 12]} />
+              <meshStandardMaterial color="#1e293b" metalness={0.5} />
+            </mesh>
+            <mesh position={[0, 0.23, 0]} castShadow>
+              <cylinderGeometry args={[0.035, 0.04, 0.42, 8]} />
+              <meshStandardMaterial color="#334155" metalness={0.5} />
+            </mesh>
+            {/* Dudukan */}
+            <mesh position={[0, 0.45, 0]} castShadow>
+              <cylinderGeometry args={[0.25, 0.24, 0.05, 14]} />
+              <meshStandardMaterial color="#b45309" roughness={0.65} />
+            </mesh>
+            {/* Penyangga & sandaran punggung */}
+            <mesh position={[dir * 0.21, 0.64, 0]} rotation={[0, 0, dir * -0.1]}>
+              <boxGeometry args={[0.04, 0.36, 0.06]} />
+              <meshStandardMaterial color="#1e293b" metalness={0.5} />
+            </mesh>
+            <mesh position={[dir * 0.23, 0.78, 0]} rotation={[0, 0, dir * -0.1]} castShadow>
+              <boxGeometry args={[0.05, 0.2, 0.38]} />
+              <meshStandardMaterial color="#b45309" roughness={0.65} />
+            </mesh>
+          </group>
+        );
+      })}
     </group>
   );
 }

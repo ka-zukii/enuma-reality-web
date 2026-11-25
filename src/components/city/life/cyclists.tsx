@@ -10,10 +10,10 @@ import { REDUCED_MOTION } from "@/components/city/life/shared";
  * PESEPEDA KOTA
  * ============================================================ */
 const CYCLIST_LANE: LaneSpec = {
-  minX: -37.5,
-  maxX: 37.5,
-  minZ: -23.5,
-  maxZ: 15.8,
+  minX: -36.8,
+  maxX: 36.8,
+  minZ: -24.0,
+  maxZ: 15.6,
   r: 3.0,
   dir: 1,
 };

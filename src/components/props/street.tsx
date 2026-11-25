@@ -75,8 +75,8 @@ export function StreetLamp({
 }
 
 /* ============================================================
- * BANGKU TAMAN
- * Dudukan dan sandaran dari bilah kayu, kaki besi cor dengan lengan.
+ * BANGKU TAMAN MODERN
+ * Bilah kayu jati ergonomis, rangka besi cor, dan sandaran tangan.
  * ============================================================ */
 export function ParkBench({
   position,
@@ -85,53 +85,74 @@ export function ParkBench({
   position: [number, number, number];
   rotation?: [number, number, number];
 }) {
-  const seatSlats = [-0.18, -0.09, 0, 0.09, 0.18];
-  const backSlats = [0.62, 0.74, 0.86];
+  const seatSlats = [-0.16, -0.06, 0.04, 0.14, 0.22];
+  const backSlats = [0.06, 0.17, 0.28];
 
   return (
     <group position={position} rotation={rotation}>
       {/* Dudukan dari bilah kayu */}
-      {seatSlats.map((z) => (
-        <mesh key={`seat-${z}`} position={[0, 0.46, z]} castShadow>
-          <boxGeometry args={[1.5, 0.04, 0.08]} />
-          <meshStandardMaterial color="#92400e" roughness={0.85} />
+      {seatSlats.map((z, idx) => (
+        <mesh
+          key={`seat-${z}`}
+          position={[0, idx === 4 ? 0.44 : 0.46, z]}
+          rotation={[idx === 4 ? 0.25 : 0, 0, 0]}
+          castShadow
+        >
+          <boxGeometry args={[1.64, 0.042, 0.075]} />
+          <meshStandardMaterial color="#b45309" roughness={0.75} />
         </mesh>
       ))}
 
-      {/* Sandaran dari bilah kayu */}
-      {backSlats.map((y) => (
-        <mesh key={`back-${y}`} position={[0, y, -0.22]} castShadow>
-          <boxGeometry args={[1.5, 0.07, 0.04]} />
-          <meshStandardMaterial color="#92400e" roughness={0.85} />
-        </mesh>
-      ))}
+      {/* Sandaran miring ergonomis */}
+      <group position={[0, 0.56, -0.22]} rotation={[-0.18, 0, 0]}>
+        {backSlats.map((y) => (
+          <mesh key={`back-${y}`} position={[0, y, 0]} castShadow>
+            <boxGeometry args={[1.64, 0.075, 0.042]} />
+            <meshStandardMaterial color="#b45309" roughness={0.75} />
+          </mesh>
+        ))}
+      </group>
 
-      {/* Kaki besi cor dan sandaran tangan */}
-      {[-0.66, 0.66].map((x) => (
+      {/* Penyangga tengah bawah dudukan */}
+      <mesh position={[0, 0.42, 0.02]}>
+        <boxGeometry args={[1.45, 0.04, 0.06]} />
+        <meshStandardMaterial color="#1e293b" metalness={0.55} roughness={0.35} />
+      </mesh>
+
+      {/* Rangka kaki besi cor & sandaran tangan */}
+      {[-0.72, 0.72].map((x) => (
         <group key={`leg-${x}`} position={[x, 0, 0]}>
-          <mesh position={[0, 0.22, 0.02]}>
-            <boxGeometry args={[0.06, 0.44, 0.44]} />
-            <meshStandardMaterial
-              color="#0f172a"
-              metalness={0.4}
-              roughness={0.5}
-            />
+          {/* Kaki depan & belakang */}
+          <mesh position={[0, 0.22, 0.16]} castShadow>
+            <boxGeometry args={[0.065, 0.44, 0.065]} />
+            <meshStandardMaterial color="#1e293b" metalness={0.55} roughness={0.35} />
           </mesh>
-          <mesh position={[0, 0.02, -0.2]}>
-            <boxGeometry args={[0.06, 0.04, 0.3]} />
-            <meshStandardMaterial
-              color="#0f172a"
-              metalness={0.4}
-              roughness={0.5}
-            />
+          <mesh position={[0, 0.22, -0.18]} castShadow>
+            <boxGeometry args={[0.065, 0.44, 0.065]} />
+            <meshStandardMaterial color="#1e293b" metalness={0.55} roughness={0.35} />
           </mesh>
-          <mesh position={[0, 0.7, -0.1]} rotation={[0.2, 0, 0]}>
-            <boxGeometry args={[0.06, 0.06, 0.5]} />
-            <meshStandardMaterial
-              color="#0f172a"
-              metalness={0.4}
-              roughness={0.5}
-            />
+          {/* Palang samping & tapak bawah */}
+          <mesh position={[0, 0.02, -0.01]}>
+            <boxGeometry args={[0.08, 0.04, 0.46]} />
+            <meshStandardMaterial color="#0f172a" metalness={0.55} roughness={0.4} />
+          </mesh>
+          <mesh position={[0, 0.42, -0.01]}>
+            <boxGeometry args={[0.06, 0.05, 0.42]} />
+            <meshStandardMaterial color="#1e293b" metalness={0.55} roughness={0.35} />
+          </mesh>
+          {/* Tiang sandaran miring */}
+          <mesh position={[0, 0.66, -0.23]} rotation={[-0.18, 0, 0]}>
+            <boxGeometry args={[0.055, 0.46, 0.055]} />
+            <meshStandardMaterial color="#1e293b" metalness={0.55} roughness={0.35} />
+          </mesh>
+          {/* Penyangga & puncak sandaran tangan */}
+          <mesh position={[0, 0.54, 0.14]}>
+            <boxGeometry args={[0.05, 0.2, 0.05]} />
+            <meshStandardMaterial color="#1e293b" metalness={0.55} roughness={0.35} />
+          </mesh>
+          <mesh position={[0, 0.65, -0.03]} castShadow>
+            <boxGeometry args={[0.075, 0.04, 0.42]} />
+            <meshStandardMaterial color="#92400e" roughness={0.7} />
           </mesh>
         </group>
       ))}

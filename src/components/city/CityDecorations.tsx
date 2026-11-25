@@ -2,6 +2,9 @@ import { LowPolyTree, ParkBench } from "@/components/CityProps";
 import { ClockTower } from "@/components/city/decor/ClockTower";
 import { LedBillboard } from "@/components/city/decor/LedBillboard";
 import { Fireflies } from "@/components/city/decor/effects";
+import { EastPlaza } from "@/components/city/decor/EastPlaza";
+import { CityInfrastructure } from "@/components/city/decor/CityInfrastructure";
+import { CityAmbientLife } from "@/components/city/decor/CityAmbientLife";
 import {
   BollardLight,
   BusStop,
@@ -125,6 +128,11 @@ export function CityDecorations({ isNight = false }: { isNight?: boolean }) {
           flowerColor={FLOWER_COLORS[(i + 2) % FLOWER_COLORS.length]}
         />
       ))}
+
+      {/* ============ PLAZA TIMUR, INFRASTRUKTUR, CAKRAWALA & BURUNG ============ */}
+      <EastPlaza isNight={isNight} />
+      <CityInfrastructure isNight={isNight} />
+      <CityAmbientLife isNight={isNight} />
     </group>
   );
 }

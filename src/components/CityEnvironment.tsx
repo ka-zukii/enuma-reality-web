@@ -358,20 +358,20 @@ export function CityEnvironment({
       <Sway position={[-39, 0, 8]} phase={2.4}>
         <LowPolyTree position={[0, 0, 0]} scale={2.0} />
       </Sway>
-      <Sway position={[38, 0, -12]} phase={3.9}>
+      <Sway position={[39, 0, -12]} phase={3.9}>
         <LowPolyTree position={[0, 0, 0]} scale={2.3} />
       </Sway>
-      <Sway position={[38, 0, 8]} phase={5.2}>
+      <Sway position={[39, 0, 8]} phase={5.2}>
         <LowPolyTree position={[0, 0, 0]} scale={2.1} />
       </Sway>
       {/* Pohon di area utara, di depan gedung belakang */}
-      <Sway position={[-8, 0, -23]} phase={1.1}>
+      <Sway position={[-8, 0, -21]} phase={1.1}>
         <LowPolyTree position={[0, 0, 0]} scale={2.0} />
       </Sway>
-      <Sway position={[6, 0, -23]} phase={2.9}>
+      <Sway position={[6, 0, -21]} phase={2.9}>
         <LowPolyTree position={[0, 0, 0]} scale={1.8} />
       </Sway>
-      <Sway position={[24, 0, -23]} phase={4.2}>
+      <Sway position={[24, 0, -21]} phase={4.2}>
         <LowPolyTree position={[0, 0, 0]} scale={2.1} />
       </Sway>
 

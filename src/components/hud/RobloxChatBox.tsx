@@ -1,32 +1,29 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Globe,
-  Lock,
   MessageSquare,
   Radio,
   Send,
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { ChatMessage, RemotePlayer } from "@/types";
+import type { ChatMessage } from "@/types";
 
-type Channel = "PROXIMITY" | "GLOBAL" | "PRIVATE";
+type Channel = "PROXIMITY" | "GLOBAL";
 
 const CHANNELS: { value: Channel; label: string; Icon: LucideIcon }[] = [
   { value: "PROXIMITY", label: "Sekitar", Icon: Radio },
   { value: "GLOBAL", label: "Global", Icon: Globe },
-  { value: "PRIVATE", label: "Private", Icon: Lock },
 ];
 
 interface RobloxChatBoxProps {
   currentUserId: string;
   messages: ChatMessage[];
-  remotePlayers: RemotePlayer[];
   isFocused: boolean;
   disabledShortcuts?: boolean;
   onFocusChange: (focused: boolean) => void;
   onSendMessage: (
-    channel: Channel,
+    channel: "PROXIMITY" | "GLOBAL" | "PRIVATE",
     content: string,
     receiverId?: string,
   ) => void;
@@ -38,7 +35,6 @@ interface RobloxChatBoxProps {
 export function RobloxChatBox({
   currentUserId,
   messages,
-  remotePlayers,
   isFocused,
   disabledShortcuts = false,
   onFocusChange,
@@ -47,9 +43,7 @@ export function RobloxChatBox({
   onOpenChange,
 }: RobloxChatBoxProps) {
   const [channel, setChannel] = useState<Channel>("PROXIMITY");
-  const [privateTargetId, setPrivateTargetId] = useState("");
   const [input, setInput] = useState("");
-  const [warn, setWarn] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -78,22 +72,15 @@ export function RobloxChatBox({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
-    if (channel === "PRIVATE" && !privateTargetId) {
-      setWarn(true);
-      return;
-    }
-    setWarn(false);
-    onSendMessage(
-      channel,
-      input,
-      channel === "PRIVATE" ? privateTargetId : undefined,
-    );
+    onSendMessage(channel, input);
     setInput("");
   };
 
-  // Panel tertutup: tampilkan 3 pesan terakhir sebagai pratinjau
+  // Panel tertutup: tampilkan 3 pesan publik terakhir sebagai pratinjau
   if (!open) {
-    const recent = messages.slice(-3);
+    const recent = messages
+      .filter((m) => m.channel !== "PRIVATE")
+      .slice(-3);
     if (recent.length === 0) return null;
     return (
       <div className="pointer-events-auto w-full rounded-xl bg-slate-900/45 px-3 py-2 text-xs leading-relaxed text-white backdrop-blur-sm">
@@ -130,7 +117,7 @@ export function RobloxChatBox({
         </button>
       </div>
 
-      {/* Tab: Sekitar / Global / Private */}
+      {/* Tab: Sekitar / Global */}
       <div className="mt-2 flex gap-1 px-3">
         {CHANNELS.map(({ value, label, Icon }) => (
           <button
@@ -147,29 +134,6 @@ export function RobloxChatBox({
           </button>
         ))}
       </div>
-
-      {channel === "PRIVATE" && (
-        <div className="mx-3 mt-2 flex items-center gap-2 rounded-lg bg-slate-50 px-2 py-1.5">
-          <span className="shrink-0 text-[11px] font-bold text-slate-500">
-            Kirim ke
-          </span>
-          <select
-            value={privateTargetId}
-            onChange={(e) => {
-              setPrivateTargetId(e.target.value);
-              setWarn(false);
-            }}
-            className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs outline-none focus:border-blue-500"
-          >
-            <option value="">Pilih pemain ({remotePlayers.length})</option>
-            {remotePlayers.map((p) => (
-              <option key={p.userId} value={p.userId}>
-                {p.fullName}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {/* Tinggi pesan mengikuti layar, sehingga tidak menutupi terlalu banyak tampilan di HP */}
       <div className="mt-2 h-[min(10rem,28dvh)] space-y-1 overflow-y-auto px-3 text-xs leading-relaxed">
@@ -194,11 +158,7 @@ export function RobloxChatBox({
                     isMe ? "text-emerald-600" : "text-blue-600"
                   }`}
                 >
-                  {isMe ? "Kamu" : m.senderName}
-                  {m.channel === "PRIVATE" && m.receiverName
-                    ? ` → ${m.receiverName}`
-                    : ""}
-                  :
+                  {isMe ? "Kamu" : m.senderName}:
                 </span>{" "}
                 <span className="text-slate-700">{m.content}</span>
               </p>
@@ -207,12 +167,6 @@ export function RobloxChatBox({
         )}
         <div ref={endRef} />
       </div>
-
-      {warn && (
-        <p className="px-3 pt-1 text-[11px] text-rose-500">
-          Pilih pemain tujuan dulu untuk chat private.
-        </p>
-      )}
 
       <form onSubmit={handleSubmit} className="flex items-center gap-2 p-3">
         <input

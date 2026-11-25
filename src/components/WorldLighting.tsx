@@ -4,7 +4,7 @@
 import { RainEffect, type WeatherOverride } from "@/components/RainEffect";
 import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
-import { Sky, Stars } from "@react-three/drei";
+import { Environment, Lightformer, Sky, Stars } from "@react-three/drei";
 import { lightingAt, type SkyLighting } from "@/config/dayCycle";
 
 /** Seberapa sering warna & cahaya diperbarui. 1 jam dunia = 50 detik. */
@@ -113,6 +113,25 @@ export function WorldLighting({
         intensity={l.hemi}
       />
       <RainEffect override={weatherOverride} />
+      {/* Refleksi lingkungan ringan (dirender 1x) untuk kaca gedung & bodi mobil */}
+      <Environment resolution={64} frames={1}>
+        <Lightformer
+          form="ring"
+          intensity={1.6}
+          color="#bae6fd"
+          position={[0, 12, 0]}
+          rotation={[Math.PI / 2, 0, 0]}
+          scale={[24, 24, 1]}
+        />
+        <Lightformer
+          form="rect"
+          intensity={0.7}
+          color="#fef3c7"
+          position={[0, -6, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          scale={[24, 24, 1]}
+        />
+      </Environment>
     </>
   );
 }

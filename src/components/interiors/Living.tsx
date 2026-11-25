@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
+import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import type { Box, BuildingKey, InteriorConfig, StairsConfig } from "@/config/buildings";
+import { NpcFigure } from "@/components/NpcFigure";
+import { playerPos } from "@/lib/playerPosition";
 
 const NPC_MARGIN = 0.45;
 
@@ -89,43 +92,23 @@ function pickFreePoint(
   obstacles: Box[],
   stairs: StairsConfig | undefined,
   fallback: THREE.Vector3,
+  avoid: THREE.Vector3[] = [],
+  minGap = 1.6,
 ) {
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 60; i++) {
     const x = THREE.MathUtils.lerp(bounds.minX + 0.8, bounds.maxX - 0.8, Math.random());
     const z = THREE.MathUtils.lerp(bounds.minZ + 0.8, bounds.maxZ - 0.8, Math.random());
-    if (isFree(x, z, obstacles, stairs, NPC_MARGIN)) return new THREE.Vector3(x, 0, z);
+    if (!isFree(x, z, obstacles, stairs, NPC_MARGIN)) continue;
+    if (avoid.some((p) => Math.hypot(x - p.x, z - p.z) < minGap)) continue;
+    return new THREE.Vector3(x, 0, z);
   }
   return fallback.clone();
 }
 
-function PersonFigure({ shirt, pants, skin, hair }: { shirt: string; pants: string; skin: string; hair: string }) {
-  return (
-    <group>
-      <mesh position={[-0.1, 0.4, 0]} castShadow>
-        <boxGeometry args={[0.13, 0.8, 0.14]} />
-        <meshStandardMaterial color={pants} roughness={0.8} />
-      </mesh>
-      <mesh position={[0.1, 0.4, 0]} castShadow>
-        <boxGeometry args={[0.13, 0.8, 0.14]} />
-        <meshStandardMaterial color={pants} roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 1.12, 0]} castShadow>
-        <boxGeometry args={[0.38, 0.6, 0.22]} />
-        <meshStandardMaterial color={shirt} roughness={0.6} />
-      </mesh>
-      <mesh position={[0, 1.56, 0]} castShadow>
-        <sphereGeometry args={[0.16, 14, 12]} />
-        <meshStandardMaterial color={skin} roughness={0.6} />
-      </mesh>
-      <mesh position={[0, 1.6, -0.02]}>
-        <sphereGeometry args={[0.168, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial color={hair} roughness={0.9} />
-      </mesh>
-    </group>
-  );
-}
-
 function Npc({
+  name,
+  lines,
+  start,
   bounds,
   obstacles,
   stairs,
@@ -133,8 +116,12 @@ function Npc({
   pants,
   skin,
   hair,
+  hairStyle = 0,
   speed = 0.6,
 }: {
+  name: string;
+  lines: string[];
+  start: THREE.Vector3;
   bounds: InteriorConfig["bounds"];
   obstacles: Box[];
   stairs?: StairsConfig;
@@ -142,19 +129,29 @@ function Npc({
   pants: string;
   skin: string;
   hair: string;
+  hairStyle?: 0 | 1 | 2;
   speed?: number;
 }) {
   const group = useRef<THREE.Group>(null);
-  const start = useMemo(
-    () => pickFreePoint(bounds, obstacles, stairs, new THREE.Vector3(0, 0, 0)),
-    [bounds, obstacles, stairs],
-  );
+  const leftLegRef = useRef<THREE.Group>(null);
+  const rightLegRef = useRef<THREE.Group>(null);
+  const leftArmRef = useRef<THREE.Group>(null);
+  const rightArmRef = useRef<THREE.Group>(null);
+
   const st = useRef({
     pos: start.clone(),
     target: null as THREE.Vector3 | null,
-    wait: Math.random() * 3,
+    wait: 1 + Math.random() * 2.5,
     yaw: Math.random() * Math.PI * 2,
   });
+  const nearRef = useRef(false);
+  const [talkIndex, setTalkIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (talkIndex === null) return;
+    const t = window.setTimeout(() => setTalkIndex(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [talkIndex]);
 
   useFrame((state, delta) => {
     const g = group.current;
@@ -162,11 +159,39 @@ function Npc({
     const s = st.current;
     const t = state.clock.elapsedTime;
 
+    const dxP = playerPos.x - s.pos.x;
+    const dzP = playerPos.z - s.pos.z;
+    const isNear = Math.hypot(dxP, dzP) < 2.1;
+
+    if (isNear && !nearRef.current) {
+      setTalkIndex((prev) => (prev === null ? 0 : prev));
+    }
+    nearRef.current = isNear;
+
+    // Berhenti & menoleh ke pemain saat diajak bicara
+    if (isNear || talkIndex !== null) {
+      const targetYaw = Math.atan2(dxP, dzP);
+      const diff = ((targetYaw - s.yaw + Math.PI) % (Math.PI * 2)) - Math.PI;
+      const shortest = diff < -Math.PI ? diff + Math.PI * 2 : diff;
+      s.yaw += shortest * 0.14;
+      g.position.set(s.pos.x, Math.sin(t * 1.5) * 0.005, s.pos.z);
+      g.rotation.y = s.yaw;
+      if (leftLegRef.current) leftLegRef.current.rotation.x *= 0.8;
+      if (rightLegRef.current) rightLegRef.current.rotation.x *= 0.8;
+      if (leftArmRef.current) leftArmRef.current.rotation.x *= 0.8;
+      if (rightArmRef.current) rightArmRef.current.rotation.x *= 0.8;
+      return;
+    }
+
     if (s.wait > 0) {
-      // Diam: berdiri sebentar, sedikit bergoyang
+      // Diam: berdiri sebentar, tangan & kaki rileks
       s.wait -= delta;
       g.position.set(s.pos.x, Math.sin(t * 1.5) * 0.005, s.pos.z);
       g.rotation.y = s.yaw;
+      if (leftLegRef.current) leftLegRef.current.rotation.x = 0;
+      if (rightLegRef.current) rightLegRef.current.rotation.x = 0;
+      if (leftArmRef.current) leftArmRef.current.rotation.x = 0;
+      if (rightArmRef.current) rightArmRef.current.rotation.x = 0;
       return;
     }
 
@@ -185,53 +210,201 @@ function Npc({
     const nx = s.pos.x + (dx / dist) * step;
     const nz = s.pos.z + (dz / dist) * step;
     if (!isFree(nx, nz, obstacles, stairs, NPC_MARGIN)) {
-      // Jalan terhalang: cari tujuan lain
       s.target = null;
       s.wait = 0.5;
       return;
     }
     s.pos.set(nx, 0, nz);
     s.yaw = Math.atan2(dx, dz);
-    g.position.set(nx, Math.abs(Math.sin(t * 6)) * 0.03, nz);
+    g.position.set(nx, Math.abs(Math.sin(t * 6)) * 0.025, nz);
     g.rotation.y = s.yaw;
+
+    const swing = Math.sin(t * 6) * 0.45;
+    if (leftLegRef.current) leftLegRef.current.rotation.x = swing;
+    if (rightLegRef.current) rightLegRef.current.rotation.x = -swing;
+    if (leftArmRef.current) leftArmRef.current.rotation.x = -swing * 0.65;
+    if (rightArmRef.current) rightArmRef.current.rotation.x = swing * 0.65;
   });
 
   return (
-    <group ref={group} position={[start.x, 0, start.z]}>
-      <PersonFigure shirt={shirt} pants={pants} skin={skin} hair={hair} />
+    <group
+      ref={group}
+      position={[start.x, 0, start.z]}
+      onClick={(e) => {
+        e.stopPropagation();
+        setTalkIndex((prev) =>
+          prev === null ? 0 : (prev + 1) % lines.length,
+        );
+      }}
+      onPointerOver={() => (document.body.style.cursor = "pointer")}
+      onPointerOut={() => (document.body.style.cursor = "")}
+    >
+      <NpcFigure
+        look={{ shirt, pants, skin, hair, hairStyle }}
+        leftLegRef={leftLegRef}
+        rightLegRef={rightLegRef}
+        leftArmRef={leftArmRef}
+        rightArmRef={rightArmRef}
+      />
+      {talkIndex !== null && (
+        <Html
+          position={[0, 2.15, 0]}
+          center
+          zIndexRange={[30, 0]}
+          style={{ pointerEvents: "none" }}
+        >
+          <div className="relative w-max max-w-[200px] rounded-2xl border border-slate-200 bg-white/95 px-3 py-1.5 text-center shadow-lg select-none">
+            <p className="text-[10px] font-bold text-blue-600">{name}</p>
+            <p className="mt-0.5 text-[11px] font-medium text-slate-800 leading-snug">
+              {lines[talkIndex]}
+            </p>
+            <div className="absolute -bottom-1.5 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rotate-45 border-b border-r border-slate-200 bg-white" />
+          </div>
+        </Html>
+      )}
     </group>
   );
 }
 
-const NPC_LOOKS: Record<BuildingKey, { shirt: string; pants: string; skin: string; hair: string }[]> = {
+const NPC_LOOKS: Record<
+  BuildingKey,
+  {
+    name: string;
+    lines: string[];
+    shirt: string;
+    pants: string;
+    skin: string;
+    hair: string;
+  }[]
+> = {
   "warung-madura": [
-    { shirt: "#f59e0b", pants: "#334155", skin: "#c68642", hair: "#111827" },
-    { shirt: "#e5e7eb", pants: "#1f2937", skin: "#8d5524", hair: "#0f172a" },
+    {
+      name: "Pak Hasan",
+      lines: ["Selamat datang di Warung Madura!", "Jajanan, galon, dan gas lengkap 24 jam."],
+      shirt: "#f59e0b",
+      pants: "#334155",
+      skin: "#c68642",
+      hair: "#111827",
+    },
+    {
+      name: "Mbak Sari",
+      lines: ["Lagi cari camilan buat nemenin kerja nih.", "Minuman dinginnya di kulkas belakang!"],
+      shirt: "#e5e7eb",
+      pants: "#1f2937",
+      skin: "#8d5524",
+      hair: "#0f172a",
+    },
   ],
   indomart: [
-    { shirt: "#dc2626", pants: "#1e3a8a", skin: "#e0ac69", hair: "#1f2937" },
-    { shirt: "#16a34a", pants: "#334155", skin: "#c68642", hair: "#111827" },
-    { shirt: "#f8fafc", pants: "#1e293b", skin: "#8d5524", hair: "#0f172a" },
+    {
+      name: "Kasir Indomaret",
+      lines: ["Selamat datang di Indomaret!", "Ada promo minuman dingin hari ini kak."],
+      shirt: "#dc2626",
+      pants: "#1e3a8a",
+      skin: "#e0ac69",
+      hair: "#1f2937",
+    },
+    {
+      name: "Rizky",
+      lines: ["Rak mie instannya rapi banget ya.", "Mau sekalian beli kopi botol?"],
+      shirt: "#16a34a",
+      pants: "#334155",
+      skin: "#c68642",
+      hair: "#111827",
+    },
+    {
+      name: "Tania",
+      lines: ["Belanja kebutuhan harian cepat di sini.", "Kasirnya ramah banget!"],
+      shirt: "#f8fafc",
+      pants: "#1e293b",
+      skin: "#8d5524",
+      hair: "#0f172a",
+    },
   ],
   "enuma-hq": [
-    { shirt: "#2563eb", pants: "#0f172a", skin: "#e0ac69", hair: "#1f2937" },
-    { shirt: "#64748b", pants: "#1e293b", skin: "#c68642", hair: "#111827" },
-    { shirt: "#f1f5f9", pants: "#334155", skin: "#8d5524", hair: "#0f172a" },
+    {
+      name: "Bagas (Engineer)",
+      lines: ["Halo! Lagi cek sistem Virtual Office nih.", "Ruang meeting-nya ada di sebelah sana."],
+      shirt: "#2563eb",
+      pants: "#0f172a",
+      skin: "#e0ac69",
+      hair: "#1f2937",
+    },
+    {
+      name: "Nisa (Product)",
+      lines: ["Semangat kerjanya hari ini!", "Jangan lupa istirahat kalau sudah sore."],
+      shirt: "#64748b",
+      pants: "#1e293b",
+      skin: "#c68642",
+      hair: "#111827",
+    },
+    {
+      name: "Fajar (IoT)",
+      lines: ["Selamat datang di Enuma Technology HQ!", "Tim kami sedang uji coba sensor baru."],
+      shirt: "#f1f5f9",
+      pants: "#334155",
+      skin: "#8d5524",
+      hair: "#0f172a",
+    },
   ],
   "lunara-cafe": [
-    { shirt: "#f472b6", pants: "#1e293b", skin: "#e0ac69", hair: "#7c2d12" },
-    { shirt: "#a78bfa", pants: "#334155", skin: "#c68642", hair: "#111827" },
-    { shirt: "#fef3c7", pants: "#0f172a", skin: "#8d5524", hair: "#1f2937" },
+    {
+      name: "Barista Lunara",
+      lines: ["Selamat datang di Lunara Cafe!", "Mau pesan kopi susu gula aren atau matcha?"],
+      shirt: "#f472b6",
+      pants: "#1e293b",
+      skin: "#e0ac69",
+      hair: "#7c2d12",
+    },
+    {
+      name: "Kiki",
+      lines: ["Lantai duanya asyik banget buat WFC.", "Naik aja lewat tangga di sisi kiri!"],
+      shirt: "#a78bfa",
+      pants: "#334155",
+      skin: "#c68642",
+      hair: "#111827",
+    },
+    {
+      name: "Beni",
+      lines: ["Pastry di sini baru keluar dari oven lho.", "Cocok banget diminum bareng latte hangat."],
+      shirt: "#fef3c7",
+      pants: "#0f172a",
+      skin: "#8d5524",
+      hair: "#1f2937",
+    },
   ],
 };
 
 export function Npcs({ config }: { config: InteriorConfig }) {
   const looks = NPC_LOOKS[config.buildingKey];
+
+  // Hitung titik spawn yang berjarak aman dari pintu masuk & antar-NPC
+  const spawns = useMemo(() => {
+    const taken: THREE.Vector3[] = [
+      new THREE.Vector3(config.spawn[0], 0, config.spawn[2]),
+    ];
+    return looks.map(() => {
+      const pt = pickFreePoint(
+        config.bounds,
+        config.obstacles,
+        config.stairs,
+        new THREE.Vector3(0, 0, 0),
+        taken,
+        1.7,
+      );
+      taken.push(pt);
+      return pt;
+    });
+  }, [config, looks]);
+
   return (
     <group>
       {looks.map((l, i) => (
         <Npc
           key={`${config.buildingKey}-${i}`}
+          name={l.name}
+          lines={l.lines}
+          start={spawns[i]}
           bounds={config.bounds}
           obstacles={config.obstacles}
           stairs={config.stairs}
@@ -239,6 +412,7 @@ export function Npcs({ config }: { config: InteriorConfig }) {
           pants={l.pants}
           skin={l.skin}
           hair={l.hair}
+          hairStyle={(i % 3) as 0 | 1 | 2}
           speed={0.5 + (i % 3) * 0.1}
         />
       ))}
@@ -250,7 +424,7 @@ export function Npcs({ config }: { config: InteriorConfig }) {
 
 const SOUND_PROFILE: Record<BuildingKey, { cutoff: number; volume: number; blips: boolean }> = {
   "warung-madura": { cutoff: 450, volume: 0.035, blips: true },
-  indomart: { cutoff: 600, volume: 0.03, blips: true },
+  "indomart": { cutoff: 600, volume: 0.03, blips: true },
   "enuma-hq": { cutoff: 300, volume: 0.02, blips: false },
   "lunara-cafe": { cutoff: 700, volume: 0.04, blips: true },
 };

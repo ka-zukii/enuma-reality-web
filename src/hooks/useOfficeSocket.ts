@@ -1,5 +1,9 @@
 import type { RideState } from "@/types";
-import { applyTramSnapshot, resetTramSnapshot, type TramSnapshot } from "@/lib/tramRuntime";
+import {
+  applyTramSnapshot,
+  resetTramSnapshot,
+  type TramSnapshot,
+} from "@/lib/tramRuntime";
 import { syncWorldClock } from "@/lib/worldClock";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
@@ -20,7 +24,7 @@ export interface PlayerTickData {
   /** Penumpang trem: posisi di kabin. Jika ada, posisi dunia dihitung dari trem. */
   ride?: RideState | null;
   rotationY: number;
-  animation: "idle" | "walk";
+  animation: "idle" | "walk" | "sit";
   zone: string;
   connectionState?: ConnectionState;
 }
@@ -69,10 +73,18 @@ interface PendingJoin {
  * - Refresh token Supabase TIDAK memicu join ulang atau reconnect.
  * - Socket dan request HTTP mengambil token terbaru lewat `getAccessToken()`.
  * - Sign-out (`userId` = null) memutus socket dan mengosongkan semua state.
+ *
+ * `avatarId` dikirim ke server setelah pemain masuk room, dan setiap kali
+ * avatar berubah. Server menyiarkannya ke pemain lain di room yang sama.
  */
-export function useOfficeSocket(userId: string | null) {
+export function useOfficeSocket(
+  userId: string | null,
+  avatarId: string | null,
+) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  /** true hanya setelah server mengirim room:state, yaitu pemain sudah ada di room */
+  const [isJoined, setIsJoined] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [workspace, setWorkspace] = useState<WorkspaceData | null>(null);
@@ -143,6 +155,7 @@ export function useOfficeSocket(userId: string | null) {
 
       setSocket(null);
       setIsConnected(false);
+      setIsJoined(false);
       clearAllBubbleTimers();
       remoteTicksRef.current = {};
       selfTickRef.current = null;
@@ -294,6 +307,7 @@ export function useOfficeSocket(userId: string | null) {
       newSocket.on("disconnect", (reason) => {
         console.warn("[Client Socket Disconnected]:", reason);
         setIsConnected(false);
+        setIsJoined(false);
         if (reason === "io server disconnect") {
           // Server yang memutus, socket.io tidak otomatis menyambung ulang
           newSocket.connect();
@@ -304,6 +318,7 @@ export function useOfficeSocket(userId: string | null) {
 
       newSocket.on("room:state", (players: RemotePlayer[]) => {
         joined = true;
+        setIsJoined(true);
         idleRef.current = false;
         settlePendingJoin();
         setError(null);
@@ -460,6 +475,29 @@ export function useOfficeSocket(userId: string | null) {
           }
           setRemotePlayers((prev) =>
             prev.map((p) => (p.userId === changedId ? { ...p, status } : p)),
+          );
+        },
+      );
+
+      // Pemain lain mengganti avatar: perbarui data karakternya
+      newSocket.on(
+        "player:avatar",
+        ({
+          userId: changedId,
+          avatarConfig,
+        }: {
+          userId: string;
+          avatarConfig: Record<string, unknown>;
+        }) => {
+          // Sementara: untuk memastikan event sampai ke browser ini. Hapus setelah beres.
+          console.log("[avatar] diterima", changedId, avatarConfig);
+          if (changedId === uid) return;
+          setRemotePlayers((prev) =>
+            prev.map((p) =>
+              p.userId === changedId
+                ? { ...p, avatarConfig: { ...p.avatarConfig, ...avatarConfig } }
+                : p,
+            ),
           );
         },
       );
@@ -628,6 +666,15 @@ export function useOfficeSocket(userId: string | null) {
       disconnectSocket("Koneksi ditutup");
     };
   }, [userId, quickJoin, disconnectSocket, resetState]);
+
+  /* ----------------------------------------------------------------------
+   * Kirim avatar ke server setelah pemain masuk room, dan setiap kali avatar
+   * berubah. Server menyiarkannya ke pemain lain di room yang sama.
+   * ---------------------------------------------------------------------- */
+  useEffect(() => {
+    if (!avatarId || !isJoined) return;
+    socketRef.current?.emit("player:avatar", { avatarId });
+  }, [avatarId, isJoined]);
 
   /* ----------------------------------------------------------------------
    * Aktivitas pemain: heartbeat saat aktif, join ulang saat kembali dari idle.

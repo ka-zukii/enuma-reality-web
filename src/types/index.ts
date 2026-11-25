@@ -33,10 +33,11 @@ export interface RemotePlayer {
   socketId: string;
   userId: string;
   fullName: string;
-  avatarConfig?: { color?: string };
+  /** `character` berisi id avatar, mis. "male_1" atau "karakter_1" */
+  avatarConfig?: { color?: string; character?: string };
   position: [number, number, number];
   rotationY: number;
-  animation: "idle" | "walk";
+  animation: "idle" | "walk" | "sit";
   zone: string;
   role: MemberRole;
   jobTitle: string | null;

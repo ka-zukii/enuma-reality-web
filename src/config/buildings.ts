@@ -141,7 +141,7 @@ export const BUILDINGS: BuildingConfig[] = [
   {
     key: "indomart",
     name: "Indomart",
-    footprint: { x: -12.65, z: -6.5, w: 20.1, d: 30.1 },
+    footprint: { x: -12.65, z: -4, w: 20.1, d: 25.1 },
     entrance: [-12.65, 0, 9.15],
     entranceRadius: 3,
     interior: {

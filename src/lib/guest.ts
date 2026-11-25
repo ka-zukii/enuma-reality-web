@@ -1,7 +1,17 @@
 import { supabase } from "@/lib/supabase";
+import type { AvatarId } from "@/config/avatars";
 
-export const CHARACTERS = ["karakter_1", "karakter_2"] as const;
-export type Character = (typeof CHARACTERS)[number];
+export const CHARACTERS = [
+  "karakter_1",
+  "karakter_2",
+  "male_1",
+  "male_2",
+  "male_3",
+  "female_1",
+  "female_2",
+  "female_3",
+] as const;
+export type Character = "karakter_1" | "karakter_2" | AvatarId;
 
 export function validateNickname(raw: string): string | null {
   const name = raw.trim();

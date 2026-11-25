@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { RobloxChatBox } from "@/components/hud/RobloxChatBox";
 import { ExitModal } from "@/components/hud/ExitModal";
+import { PhoneButton, PhonePopup } from "@/components/hud/PhoneWidget";
 import {
   type ChatMessage,
   type PlayerStatus,
@@ -98,6 +99,7 @@ export function VOfficeOverlay({
   const [showHelp, setShowHelp] = useState(true);
   const [menu, setMenu] = useState<"view" | "status" | null>(null);
   const [showExit, setShowExit] = useState(false);
+  const [phoneOpen, setPhoneOpen] = useState(false);
 
   const weather = useWeather();
   const WeatherIcon = weather ? WEATHER_ICON[weather.kind] : Cloud;
@@ -190,7 +192,6 @@ export function VOfficeOverlay({
         <RobloxChatBox
           currentUserId={currentUserId}
           messages={messages}
-          remotePlayers={remotePlayers}
           isFocused={isChatFocused}
           onFocusChange={onFocusChatChange}
           onSendMessage={onSendMessage}
@@ -416,6 +417,24 @@ export function VOfficeOverlay({
           )}
         </AnimatePresence>
       </div>
+
+      {/* ============ KANAN BAWAH: tombol ponsel ============ */}
+      <div className="pointer-events-auto absolute bottom-14 right-3 z-30 sm:bottom-6 sm:right-6">
+        <PhoneButton open={phoneOpen} onToggle={() => setPhoneOpen((v) => !v)} />
+      </div>
+
+      <PhonePopup
+        open={phoneOpen}
+        onClose={() => setPhoneOpen(false)}
+        positionClassName="bottom-14 right-16 sm:bottom-6 sm:right-20"
+        chat={{
+          currentUserId,
+          messages,
+          remotePlayers,
+          onSendMessage,
+          onFocusInputChange: onFocusChatChange,
+        }}
+      />
 
       {showExit && (
         <ExitModal

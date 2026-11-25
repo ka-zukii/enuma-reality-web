@@ -1,4 +1,4 @@
-import {
+﻿import {
   type ReactNode,
   type RefObject,
   useEffect,
@@ -39,6 +39,7 @@ import {
   type RiderState,
 } from "@/lib/tramRuntime";
 import { platformY } from "@/config/railway";
+import { findNearestSeat, type SeatConfig } from "@/config/seats";
 
 interface OfficeSceneProps {
   socket: Socket | null;
@@ -46,6 +47,7 @@ interface OfficeSceneProps {
     id: string;
     fullName: string;
     color: string;
+    avatarId?: string | null;
     role?: MemberRole;
     jobTitle?: string | null;
     status?: PlayerStatus;
@@ -207,7 +209,9 @@ export function OfficeScene({
   const onStairsRef = useRef(false);
   /** Status naik trem pemain lokal (koordinat di kabin) */
   const riderRef = useRef<RiderState>({ riding: false, rx: 0, rz: 0 });
-  /** Petunjuk naik/turun trem di atas kepala pemain (diubah langsung, tanpa re-render) */
+  const sittingSeatRef = useRef<SeatConfig | null>(null);
+  const standPosRef = useRef<Vec3>([spawn[0], spawn[1], spawn[2]]);
+  /** Petunjuk naik/turun trem & duduk di atas kepala pemain (diubah langsung, tanpa re-render) */
   const tramHintGroupRef = useRef<THREE.Group>(null);
   const tramHintTextRef = useRef<HTMLDivElement>(null);
   const lastHintRef = useRef<string | null>(null);
@@ -267,6 +271,34 @@ export function OfficeScene({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isChatFocused) return;
       keysPressed.current[e.code] = true;
+
+      if (e.code === "KeyE" && !e.repeat && !isInterior && !spectator) {
+        // Jangan bentrok jika pemain sedang di dalam/dekat pintu trem
+        const cur = localStateRef.current;
+        if (riderRef.current.riding || isNearTramDoor(cur.position[0], cur.position[2])) {
+          return;
+        }
+        if (sittingSeatRef.current) {
+          sittingSeatRef.current = null;
+          localStateRef.current = {
+            ...cur,
+            position: [...standPosRef.current] as Vec3,
+            animation: "idle",
+          };
+          return;
+        }
+        const seat = findNearestSeat(cur.position[0], cur.position[2]);
+        if (seat) {
+          standPosRef.current = [cur.position[0], cur.position[1], cur.position[2]];
+          sittingSeatRef.current = seat;
+          localStateRef.current = {
+            ...cur,
+            position: [seat.x, seat.y, seat.z],
+            rotationY: seat.rotationY,
+            animation: "sit",
+          };
+        }
+      }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       keysPressed.current[e.code] = false;
@@ -337,6 +369,7 @@ export function OfficeScene({
     }
 
     if (ride) {
+      sittingSeatRef.current = null;
       // Pemain sedang di dalam trem, atau baru saja turun dari trem
       const [x, z] = ride.pos;
       let zone = current.zone;
@@ -355,6 +388,11 @@ export function OfficeScene({
           : null,
       };
     } else if (isMoving) {
+      // Jika sedang duduk lalu menekan tombol gerak, otomatis berdiri
+      if (sittingSeatRef.current) {
+        sittingSeatRef.current = null;
+        current.position = [...standPosRef.current] as Vec3;
+      }
       // Gerak jalan kaki biasa (di luar trem)
       const [px, py, pz] = current.position;
       const stepX = moveDir.x * MOVE_SPEED * delta;
@@ -398,6 +436,14 @@ export function OfficeScene({
         animation: didMove ? "walk" : "idle",
         zone,
       };
+    } else if (sittingSeatRef.current) {
+      const seat = sittingSeatRef.current;
+      localStateRef.current = {
+        ...current,
+        position: [seat.x, seat.y, seat.z],
+        rotationY: seat.rotationY,
+        animation: "sit",
+      };
     } else if (current.animation !== "idle") {
       localStateRef.current = { ...current, animation: "idle" };
     }
@@ -417,9 +463,16 @@ export function OfficeScene({
           hint = isTramStopped()
             ? "Tekan E untuk naik"
             : "Tunggu trem berhenti untuk naik";
+        } else if (sittingSeatRef.current) {
+          hint = "Tekan E untuk berdiri";
+        } else if (findNearestSeat(cur.position[0], cur.position[2])) {
+          hint = "Tekan E untuk duduk";
         }
       }
       hintGroup.visible = hint !== null;
+      if (tramHintTextRef.current) {
+        tramHintTextRef.current.style.display = hint ? "block" : "none";
+      }
       if (hint) {
         hintGroup.position.set(cur.position[0], cur.position[1] + 2.5, cur.position[2]);
         if (hint !== lastHintRef.current && tramHintTextRef.current) {
@@ -524,6 +577,7 @@ export function OfficeScene({
       <CityEnvironment
         onBuildingSelect={onBuildingSelect ?? noop}
         showLabels={cameraMode !== "first" && labelsVisible}
+        timeMode={timeMode}
       />
     );
   }
@@ -574,6 +628,7 @@ export function OfficeScene({
             <div
               ref={tramHintTextRef}
               style={{
+                display: "none",
                 background: "rgba(15, 23, 42, 0.85)",
                 color: "#ffffff",
                 padding: "6px 12px",
@@ -593,6 +648,7 @@ export function OfficeScene({
           userId={currentUser.id}
           fullName={currentUser.fullName}
           color={currentUser.color}
+          avatarId={currentUser.avatarId}
           initialPosition={spawn}
           isLocal={true}
           localStateRef={localStateRef}
@@ -613,6 +669,7 @@ export function OfficeScene({
             userId={player.userId}
             fullName={player.fullName}
             color={player.avatarConfig?.color || "#3b82f6"}
+            avatarId={player.avatarConfig?.character ?? null}
             initialPosition={player.position}
             isLocal={false}
             remoteTicksRef={remoteTicksRef}

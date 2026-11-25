@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { Html, RoundedBox } from "@react-three/drei";
 import { Coffee, Gamepad2, Building2, Store } from "lucide-react";
@@ -568,24 +569,63 @@ function makeCarGlass(): THREE.BufferGeometry {
   return geo;
 }
 
+function makeHeadlightTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const g = canvas.getContext("2d");
+  if (g) {
+    // Gradien halus dari lampu mobil (bawah/y=128) memudar ke depan (atas/y=0)
+    const grad = g.createLinearGradient(0, 128, 0, 0);
+    grad.addColorStop(0, "rgba(254, 249, 195, 0.55)");
+    grad.addColorStop(0.45, "rgba(254, 249, 195, 0.18)");
+    grad.addColorStop(1, "rgba(254, 249, 195, 0)");
+    g.fillStyle = grad;
+    g.beginPath();
+    g.moveTo(46, 128);
+    g.lineTo(82, 128);
+    g.lineTo(124, 0);
+    g.lineTo(4, 0);
+    g.closePath();
+    g.fill();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 export function LowPolyCar({
   position,
   rotation = [0, 0, 0],
   color = "#dc2626",
+  isNight = false,
+  spinning = false,
 }: {
   position: [number, number, number];
   rotation?: [number, number, number];
   color?: string;
+  isNight?: boolean;
+  spinning?: boolean;
 }) {
   const bodyGeo = useMemo(() => makeCarBody(), []);
   const glassGeo = useMemo(() => makeCarGlass(), []);
+  const beamTex = useMemo(() => makeHeadlightTexture(), []);
+  const wheelRefs = useRef<(THREE.Group | null)[]>([]);
+
+  useFrame((_, delta) => {
+    if (!spinning) return;
+    for (const w of wheelRefs.current) {
+      if (w) w.rotation.x -= delta * 10;
+    }
+  });
 
   useEffect(
     () => () => {
       bodyGeo.dispose();
       glassGeo.dispose();
+      beamTex.dispose();
     },
-    [bodyGeo, glassGeo],
+    [bodyGeo, glassGeo, beamTex],
   );
 
   const wheels: [number, number][] = [
@@ -611,44 +651,104 @@ export function LowPolyCar({
         />
       </mesh>
 
-      {/* Roda dengan velg */}
-      {wheels.map(([x, z]) => (
-        <group key={`${x}-${z}`} position={[x, 0.32, z]}>
+      {/* Roda dengan velg & baut tengah */}
+      {wheels.map(([x, z], idx) => (
+        <group
+          key={`${x}-${z}`}
+          ref={(el) => {
+            wheelRefs.current[idx] = el;
+          }}
+          position={[x, 0.32, z]}
+        >
           <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
-            <cylinderGeometry args={[0.32, 0.32, 0.24, 18]} />
-            <meshStandardMaterial color="#111827" roughness={0.9} />
+            <cylinderGeometry args={[0.32, 0.32, 0.24, 20]} />
+            <meshStandardMaterial color="#111827" roughness={0.88} />
           </mesh>
           <mesh rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.19, 0.19, 0.25, 16]} />
+            <cylinderGeometry args={[0.2, 0.2, 0.25, 16]} />
             <meshStandardMaterial
               color="#cbd5e1"
-              metalness={0.8}
-              roughness={0.3}
+              metalness={0.85}
+              roughness={0.25}
             />
+          </mesh>
+          <mesh rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.07, 0.07, 0.26, 12]} />
+            <meshStandardMaterial color="#334155" metalness={0.9} roughness={0.2} />
           </mesh>
         </group>
       ))}
 
-      {/* Lampu depan (di -Z) */}
+      {/* Sunroof kaca di atap */}
+      <mesh position={[0, 1.445, 0.1]}>
+        <boxGeometry args={[1.15, 0.02, 0.72]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.1} metalness={0.4} />
+      </mesh>
+
+      {/* Bumper & gril depan (di -Z) */}
+      <mesh position={[0, 0.45, -2.14]}>
+        <boxGeometry args={[1.65, 0.16, 0.1]} />
+        <meshStandardMaterial color="#1e293b" roughness={0.5} />
+      </mesh>
+      <mesh position={[0, 0.62, -2.13]}>
+        <boxGeometry args={[0.85, 0.16, 0.06]} />
+        <meshStandardMaterial color="#0f172a" metalness={0.6} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, 0.46, -2.195]}>
+        <boxGeometry args={[0.42, 0.1, 0.02]} />
+        <meshStandardMaterial color="#f8fafc" roughness={0.4} />
+      </mesh>
+
+      {/* Lampu depan (di -Z) + sorot lembut di permukaan aspal saat malam */}
       {[-0.6, 0.6].map((x) => (
-        <mesh key={`head-${x}`} position={[x, 0.72, -2.11]}>
-          <boxGeometry args={[0.45, 0.14, 0.05]} />
+        <mesh key={`head-${x}`} position={[x, 0.72, -2.12]}>
+          <boxGeometry args={[0.45, 0.13, 0.06]} />
           <meshStandardMaterial
             color="#fef9c3"
             emissive="#fef9c3"
-            emissiveIntensity={0.8}
+            emissiveIntensity={isNight ? 1.8 : 0.7}
           />
+        </mesh>
+      ))}
+      {isNight && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.045, -4.3]}>
+          <planeGeometry args={[2.6, 4.4]} />
+          <meshBasicMaterial
+            map={beamTex}
+            transparent
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+
+      {/* Bumper belakang, plat & knalpot (di +Z) */}
+      <mesh position={[0, 0.44, 2.14]}>
+        <boxGeometry args={[1.65, 0.16, 0.1]} />
+        <meshStandardMaterial color="#1e293b" roughness={0.5} />
+      </mesh>
+      <mesh position={[0, 0.62, 2.14]}>
+        <boxGeometry args={[0.42, 0.1, 0.02]} />
+        <meshStandardMaterial color="#f8fafc" roughness={0.4} />
+      </mesh>
+      {[-0.55, 0.55].map((x) => (
+        <mesh
+          key={`ex-${x}`}
+          position={[x, 0.34, 2.18]}
+          rotation={[Math.PI / 2, 0, 0]}
+        >
+          <cylinderGeometry args={[0.045, 0.045, 0.08, 10]} />
+          <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.2} />
         </mesh>
       ))}
 
       {/* Lampu belakang (di +Z) */}
       {[-0.7, 0.7].map((x) => (
-        <mesh key={`tail-${x}`} position={[x, 0.72, 2.11]}>
-          <boxGeometry args={[0.4, 0.14, 0.05]} />
+        <mesh key={`tail-${x}`} position={[x, 0.72, 2.12]}>
+          <boxGeometry args={[0.42, 0.13, 0.06]} />
           <meshStandardMaterial
             color="#ef4444"
             emissive="#ef4444"
-            emissiveIntensity={0.6}
+            emissiveIntensity={0.7}
           />
         </mesh>
       ))}
@@ -671,8 +771,10 @@ export function LowPolyCar({
  * ============================================================ */
 export function StreetLamp({
   position,
+  isNight = false,
 }: {
   position: [number, number, number];
+  isNight?: boolean;
 }) {
   const armGeo = useMemo(() => {
     const curve = new THREE.CatmullRomCurve3([
@@ -714,11 +816,23 @@ export function StreetLamp({
       <mesh position={[0.75, 4.0, 0]}>
         <cylinderGeometry args={[0.16, 0.16, 0.03, 16]} />
         <meshStandardMaterial
-          color="#fef08a"
-          emissive="#fef08a"
-          emissiveIntensity={1.2}
+          color={isNight ? "#fef08a" : "#e2e8f0"}
+          emissive="#fde047"
+          emissiveIntensity={isNight ? 2.5 : 0.35}
         />
       </mesh>
+      {isNight && (
+        <mesh position={[0.75, 3.85, 0]}>
+          <coneGeometry args={[0.75, 0.9, 12, 1, true]} />
+          <meshBasicMaterial
+            color="#fef08a"
+            transparent
+            opacity={0.14}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
     </group>
   );
 }

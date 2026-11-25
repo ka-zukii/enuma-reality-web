@@ -1,3 +1,5 @@
+import { useEffect, useMemo } from "react";
+import * as THREE from "three";
 import {
   BUILDINGS,
   type BuildingConfig,
@@ -12,6 +14,13 @@ import {
   ParkBench,
 } from "@/components/CityProps";
 import { CityLife, Sway } from "@/components/city/CityLife";
+import { CityDecorations } from "@/components/city/CityDecorations";
+import type { TimeMode } from "@/components/WorldLighting";
+import {
+  makeAsphaltTexture,
+  makeGrassTexture,
+  makePavingTexture,
+} from "@/lib/cityTextures";
 import { Tram } from "./railway/Tram";
 import { TrainStation } from "@/components/railway/TrainStation";
 import { RailTrack } from "@/components/railway/RailTrack";
@@ -105,18 +114,103 @@ interface CityEnvironmentProps {
   onBuildingSelect: (building: BuildingInfo) => void;
   /** false = sembunyikan label gedung (mode orang pertama) */
   showLabels?: boolean;
+  timeMode?: TimeMode;
+}
+
+function isNightTime(mode: TimeMode): boolean {
+  if (mode === "malam" || mode === "sore") return true;
+  if (mode === "pagi" || mode === "istirahat") return false;
+  const h = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      hourCycle: "h23",
+      timeZone: "Asia/Jakarta",
+    }).format(new Date()),
+  );
+  return h >= 17 || h < 6;
 }
 
 const H = ROAD.width / 2; // setengah lebar jalan
 
+function roundedRectPath(
+  path: THREE.Path,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+  r: number,
+) {
+  path.moveTo(minX + r, minY);
+  path.lineTo(maxX - r, minY);
+  path.quadraticCurveTo(maxX, minY, maxX, minY + r);
+  path.lineTo(maxX, maxY - r);
+  path.quadraticCurveTo(maxX, maxY, maxX - r, maxY);
+  path.lineTo(minX + r, maxY);
+  path.quadraticCurveTo(minX, maxY, minX, maxY - r);
+  path.lineTo(minX, minY + r);
+  path.quadraticCurveTo(minX, minY, minX + r, minY);
+}
+
+function makeCurvedRoadGeo(): THREE.ShapeGeometry {
+  const { west, east, north, south } = ROAD;
+  // Shape di bidang XY diputar -PI/2 pada sumbu X, sehingga Y = -Z
+  const outer = new THREE.Shape();
+  roundedRectPath(outer, west - H, -(south + H), east + H, -(north - H), 9.5);
+
+  const inner = new THREE.Path();
+  roundedRectPath(inner, west + H, -(south - H), east - H, -(north + H), 3.5);
+  outer.holes.push(inner);
+
+  return new THREE.ShapeGeometry(outer, 16);
+}
+
+function makeCurbGeo(): THREE.ShapeGeometry {
+  const { west, east, north, south } = ROAD;
+  const outer = new THREE.Shape();
+  roundedRectPath(
+    outer,
+    west - H - 0.35,
+    -(south + H + 0.35),
+    east + H + 0.35,
+    -(north - H - 0.35),
+    9.85,
+  );
+  const inner = new THREE.Path();
+  roundedRectPath(
+    inner,
+    west - H,
+    -(south + H),
+    east + H,
+    -(north - H),
+    9.5,
+  );
+  outer.holes.push(inner);
+  return new THREE.ShapeGeometry(outer, 16);
+}
+
 export function CityEnvironment({
   onBuildingSelect,
   showLabels = true,
+  timeMode = "live",
 }: CityEnvironmentProps) {
-  const { west, east, north, south } = ROAD;
-  const roadLen = east - west + 2 * H; // panjang jalan horizontal
-  const sideLen = south - north + 2 * H; // panjang jalan vertikal
-  const sideZ = (north + south) / 2;
+  const { north, south, west, east } = ROAD;
+  const roadGeo = useMemo(() => makeCurvedRoadGeo(), []);
+  const curbGeo = useMemo(() => makeCurbGeo(), []);
+  const grassTex = useMemo(() => makeGrassTexture(), []);
+  const pavingTex = useMemo(() => makePavingTexture(), []);
+  const asphaltTex = useMemo(() => makeAsphaltTexture(), []);
+  const isNight = isNightTime(timeMode);
+
+  useEffect(
+    () => () => {
+      roadGeo.dispose();
+      curbGeo.dispose();
+      grassTex.dispose();
+      pavingTex.dispose();
+      asphaltTex.dispose();
+    },
+    [roadGeo, curbGeo, grassTex, pavingTex, asphaltTex],
+  );
 
   return (
     <group>
@@ -125,35 +219,31 @@ export function CityEnvironment({
           ======================================================== */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.06, 0]} receiveShadow>
         <planeGeometry args={[160, 160]} />
-        <meshStandardMaterial color="#86efac" roughness={0.9} />
+        <meshStandardMaterial map={grassTex} roughness={0.92} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} receiveShadow>
         <planeGeometry args={[100, 100]} />
-        <meshStandardMaterial color="#e2e8f0" roughness={0.8} />
+        <meshStandardMaterial map={pavingTex} roughness={0.82} />
       </mesh>
 
       {/* ========================================================
-          JALAN KELILING KOTA
+          JALAN KELILING KOTA (sudut melengkung, satu mesh tanpa z-fighting)
           ======================================================== */}
-      {/* Selatan */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, south]} receiveShadow>
-        <planeGeometry args={[roadLen, ROAD.width]} />
-        <meshStandardMaterial color="#334155" roughness={0.7} />
+      <mesh
+        geometry={roadGeo}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.02, 0]}
+        receiveShadow
+      >
+        <meshStandardMaterial map={asphaltTex} roughness={0.75} />
       </mesh>
-      {/* Utara */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, north]} receiveShadow>
-        <planeGeometry args={[roadLen, ROAD.width]} />
-        <meshStandardMaterial color="#334155" roughness={0.7} />
-      </mesh>
-      {/* Barat */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[west, 0.02, sideZ]} receiveShadow>
-        <planeGeometry args={[ROAD.width, sideLen]} />
-        <meshStandardMaterial color="#334155" roughness={0.7} />
-      </mesh>
-      {/* Timur */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[east, 0.02, sideZ]} receiveShadow>
-        <planeGeometry args={[ROAD.width, sideLen]} />
-        <meshStandardMaterial color="#334155" roughness={0.7} />
+      <mesh
+        geometry={curbGeo}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.028, 0]}
+        receiveShadow
+      >
+        <meshStandardMaterial color="#cbd5e1" roughness={0.8} />
       </mesh>
 
       {/* Marka putus-putus jalan selatan & utara */}
@@ -184,15 +274,15 @@ export function CityEnvironment({
         </group>
       ))}
 
-      {/* Zebra cross di selatan dan utara */}
-      {[-2, 0, 2].map((offset) => (
+      {/* Zebra cross di selatan dan utara (sejajar lebar jalur penyeberangan) */}
+      {[-2.2, -1.1, 0, 1.1, 2.2].map((offset) => (
         <group key={`zebra-${offset}`}>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[offset, 0.026, south]}>
-            <planeGeometry args={[0.8, 5]} />
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.026, south + offset]}>
+            <planeGeometry args={[3.2, 0.55]} />
             <meshBasicMaterial color="#ffffff" />
           </mesh>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[offset, 0.026, north]}>
-            <planeGeometry args={[0.8, 5]} />
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.026, north + offset]}>
+            <planeGeometry args={[3.2, 0.55]} />
             <meshBasicMaterial color="#ffffff" />
           </mesh>
         </group>
@@ -224,6 +314,7 @@ export function CityEnvironment({
             center={CITY_MODEL[key].center}
             top={CITY_MODEL[key].top}
             showLabel={showLabels}
+            isNight={isNight}
           />
         ),
       )}
@@ -239,6 +330,21 @@ export function CityEnvironment({
             <boxGeometry args={[10.4, 0.4, 9.4]} />
             <meshStandardMaterial color="#334155" />
           </mesh>
+          {/* Jendela fasad depan */}
+          {[2.5, 5, 7.5].map((y) =>
+            [-2.8, 0, 2.8].map((wx) => (
+              <mesh key={`w-${y}-${wx}`} position={[wx, y, 4.52]}>
+                <planeGeometry args={[1.6, 1.4]} />
+                <meshStandardMaterial
+                  color={isNight ? "#fde68a" : "#7dd3fc"}
+                  emissive={isNight ? "#f59e0b" : "#000000"}
+                  emissiveIntensity={isNight ? 0.9 : 0}
+                  roughness={0.2}
+                  metalness={0.3}
+                />
+              </mesh>
+            )),
+          )}
         </group>
       ))}
 
@@ -294,17 +400,61 @@ export function CityEnvironment({
       {/* ========================================================
           LAMPU JALAN
           ======================================================== */}
-      <StreetLamp position={[-32, 0, 13.5]} />
-      <StreetLamp position={[-4, 0, 13.5]} />
-      <StreetLamp position={[24, 0, 13.5]} />
-      <StreetLamp position={[-32, 0, -23.5]} />
-      <StreetLamp position={[-4, 0, -23.5]} />
-      <StreetLamp position={[24, 0, -23.5]} />
+      <StreetLamp position={[-32, 0, 13.5]} isNight={isNight} />
+      <StreetLamp position={[-4, 0, 13.5]} isNight={isNight} />
+      <StreetLamp position={[24, 0, 13.5]} isNight={isNight} />
+      <StreetLamp position={[-32, 0, -23.5]} isNight={isNight} />
+      <StreetLamp position={[-4, 0, -23.5]} isNight={isNight} />
+      <StreetLamp position={[24, 0, -23.5]} isNight={isNight} />
 
       {/* ========================================================
-          KEHIDUPAN KOTA: pejalan kaki, lalu lintas, burung, awan, cahaya
+          CITY LIGHTS (pencahayaan titik ringan khusus malam/sore)
           ======================================================== */}
-      <CityLife />
+      {isNight && (
+        <group>
+          <pointLight
+            position={[-24, 4.2, 15]}
+            color="#fde68a"
+            intensity={18}
+            distance={24}
+            decay={2}
+          />
+          <pointLight
+            position={[4, 4.2, 15]}
+            color="#fde68a"
+            intensity={18}
+            distance={24}
+            decay={2}
+          />
+          <pointLight
+            position={[28, 4.2, 15]}
+            color="#fde68a"
+            intensity={18}
+            distance={24}
+            decay={2}
+          />
+          <pointLight
+            position={[-16, 2.5, 32.5]}
+            color="#38bdf8"
+            intensity={14}
+            distance={18}
+            decay={2}
+          />
+          <pointLight
+            position={[0, 4.0, -23]}
+            color="#fef08a"
+            intensity={14}
+            distance={26}
+            decay={2}
+          />
+        </group>
+      )}
+
+      {/* ========================================================
+          KEHIDUPAN & DEKORASI KOTA
+          ======================================================== */}
+      <CityDecorations isNight={isNight} />
+      <CityLife isNight={isNight} />
       <RailTrack />
       <TrainStation position={[0, 0, 46.6]} />
       <Tram />

@@ -13,6 +13,7 @@ import { CITY_DOORS } from "@/config/doors";
 import { doorReady } from "@/lib/playerPosition";
 import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
+import * as THREE from "three";
 import { AlertCircle, Building2, LogOut, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useOfficeSocket } from "@/hooks/useOfficeSocket";
@@ -52,7 +53,6 @@ function distXZ(a: Vec3, b: Vec3) {
   return Math.hypot(a[0] - b[0], a[2] - b[2]);
 }
 
-/** Canvas dibuat ulang setiap pindah halaman, sehingga memori scene sebelumnya dilepas */
 /** Status di mode jelajah -> mode waktu lingkungan */
 function statusToTimeMode(status?: PlayerStatus | null): TimeMode {
   switch (status) {
@@ -69,6 +69,7 @@ function statusToTimeMode(status?: PlayerStatus | null): TimeMode {
   }
 }
 
+/** Canvas dibuat ulang setiap pindah halaman, sehingga memori scene sebelumnya dilepas */
 function SceneCanvas({
   children,
   camera,
@@ -77,7 +78,17 @@ function SceneCanvas({
   camera: { position: Vec3; fov: number };
 }) {
   return (
-    <Canvas shadows camera={camera} className="w-full h-full">
+    <Canvas
+      shadows
+      dpr={[1, 1.5]}
+      gl={{
+        powerPreference: "high-performance",
+        toneMapping: THREE.ACESFilmicToneMapping,
+        toneMappingExposure: 1.05,
+      }}
+      camera={camera}
+      className="w-full h-full"
+    >
       {children}
     </Canvas>
   );
@@ -146,6 +157,10 @@ function AppContent() {
   // Hanya id user yang dipakai untuk koneksi, supaya refresh token tidak memicu join ulang
   const userId = session?.user.id ?? null;
   const isSignedIn = userId !== null;
+  // Avatar terpilih user. Saat berubah, hook mengirimkannya ke server
+  // agar pemain lain ikut melihat perubahannya.
+  const selectedAvatarId =
+    (session?.user.user_metadata?.character as string | undefined) ?? null;
   const {
     socket,
     error,
@@ -161,15 +176,15 @@ function AppContent() {
     enterRoom,
     enterBuilding,
     setStatus,
-
-  } = useOfficeSocket(userId);
+  } = useOfficeSocket(userId, selectedAvatarId);
 
   // Status di mode jelajah: disimpan lokal (untuk lingkungan),
   // dan dikirim ke server hanya untuk status yang dikenalnya
   const [localStatus, setLocalStatus] = useState<PlayerStatus>("LIVE");
   const handleStatusChange = (next: PlayerStatus) => {
     setLocalStatus(next);
-    if (next === "LIVE" || next === "PAGI" || next === "ISTIRAHAT") setStatus(next);
+    if (next === "LIVE" || next === "PAGI" || next === "ISTIRAHAT")
+      setStatus(next);
   };
 
   // Tampilan sebelum masuk (overview kota + modal nama)
@@ -435,7 +450,9 @@ function AppContent() {
           onMenuClose={() => setLandingMenu(null)}
           activeView={landingView}
           onViewSelect={setLandingView}
-          onExplore={() => (isLoggedIn ? setEnteredGame(true) : setShowGuestModal(true))}
+          onExplore={() =>
+            isLoggedIn ? setEnteredGame(true) : setShowGuestModal(true)
+          }
           timeMode={timeMode}
           onTimeModeChange={setTimeMode}
           weatherOverride={weatherOverride}
@@ -464,6 +481,7 @@ function AppContent() {
     id: session.user.id,
     fullName: userName,
     color: "#3b82f6",
+    avatarId: selectedAvatarId,
     role: selfInfo?.role ?? "MEMBER",
     jobTitle: selfInfo?.jobTitle ?? null,
     status: selfInfo?.status ?? "LIVE",
@@ -493,7 +511,7 @@ function AppContent() {
                 }}
                 onLocalPositionChange={handleLocalPosition}
                 cameraMode={cameraMode}
-                    timeMode={statusToTimeMode(localStatus)}
+                timeMode={statusToTimeMode(localStatus)}
               />
             </SceneCanvas>
           }

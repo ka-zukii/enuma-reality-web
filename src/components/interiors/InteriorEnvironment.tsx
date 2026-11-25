@@ -1,7 +1,18 @@
-import type * as THREE from "three";
+import * as THREE from "three";
 import { useMemo } from "react";
 import { Html, useGLTF } from "@react-three/drei";
 import type { InteriorConfig } from "@/config/buildings";
+
+const _size = new THREE.Vector3();
+
+function meshMaxDim(mesh: THREE.Mesh): number {
+  const geo = mesh.geometry;
+  if (!geo) return 0;
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  if (!geo.boundingBox) return 0;
+  geo.boundingBox.getSize(_size);
+  return Math.max(_size.x, _size.y, _size.z);
+}
 
 /**
  * Interior satu gedung. Seluruh ruangan (dinding, lantai, meja, dll.)
@@ -12,13 +23,18 @@ export function InteriorEnvironment({ config }: { config: InteriorConfig }) {
   const { scene } = useGLTF(config.model);
   const { bounds, exit, accent, name, modelCenter, modelRotationY } = config;
 
-  // Aktifkan bayangan untuk semua mesh di model (sekali saja per model)
+  // Aktifkan bayangan hanya untuk elemen struktural/besar agar shadow pass ringan
   useMemo(() => {
     scene.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (mesh.isMesh) {
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
+        const dim = meshMaxDim(mesh);
+        mesh.castShadow = dim >= 0.8;
+        mesh.receiveShadow = dim >= 0.4;
+      }
+      if (obj !== scene) {
+        obj.updateMatrix();
+        obj.matrixAutoUpdate = false;
       }
     });
   }, [scene]);

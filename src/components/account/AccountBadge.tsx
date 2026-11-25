@@ -4,12 +4,20 @@ import type { Session } from "@supabase/supabase-js";
 import { AlertCircle, LogOut, Loader2, Pencil, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-type Character = "karakter_1" | "karakter_2";
+type Gender = "male" | "female";
 
-const GENDER_OPTIONS: { label: string; character: Character }[] = [
-  { label: "Laki-laki", character: "karakter_1" },
-  { label: "Perempuan", character: "karakter_2" },
+/** Preset default untuk tiap gender. Harus termasuk ALLOWED_AVATAR_IDS di server. */
+const GENDER_OPTIONS: { label: string; gender: Gender; preset: string }[] = [
+  { label: "Laki-laki", gender: "male", preset: "male_1" },
+  { label: "Perempuan", gender: "female", preset: "female_1" },
 ];
+
+/** karakter_1/karakter_2 (format lama) dan male_x/female_x (preset dari ponsel) */
+function genderOf(character: string): Gender {
+  return character === "karakter_2" || character.startsWith("female")
+    ? "female"
+    : "male";
+}
 
 function displayName(session: Session): string {
   const meta = session.user.user_metadata ?? {};
@@ -41,34 +49,36 @@ export function AccountBadge({
   return (
     <>
       {!hidden && (
-      <div
-        className={`pointer-events-auto absolute right-3 z-40 flex items-center gap-2 rounded-full bg-white/95 py-1.5 pl-1.5 pr-3 shadow-lg backdrop-blur sm:right-4 ${
-          position === "game" ? "top-[64px]" : "top-3 sm:top-4"
-        }`}
-      >
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-extrabold text-white">
-          {initials}
-        </span>
-        <div className="max-w-[160px] leading-tight">
-          <p className="truncate text-xs font-bold text-slate-900">{name}</p>
-          <p className="text-[10px] text-slate-500">
-            {isGuest ? "Tamu" : "Sudah login"}
-          </p>
+        <div
+          className={`pointer-events-auto absolute right-3 z-40 flex items-center gap-2 rounded-full bg-white/95 py-1.5 pl-1.5 pr-3 shadow-lg backdrop-blur sm:right-4 ${
+            position === "game" ? "top-[64px]" : "top-3 sm:top-4"
+          }`}
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-extrabold text-white">
+            {initials}
+          </span>
+          <div className="max-w-[160px] leading-tight">
+            <p className="truncate text-xs font-bold text-slate-900">{name}</p>
+            <p className="text-[10px] text-slate-500">
+              {isGuest ? "Tamu" : "Sudah login"}
+            </p>
+          </div>
+          {!isGuest && (
+            <button
+              onClick={() => setOpen(true)}
+              aria-label="Ubah profil"
+              title="Ubah profil"
+              className="ml-1 flex h-7 w-7 items-center justify-center rounded-full text-slate-600 transition hover:bg-slate-100 cursor-pointer"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
-        {!isGuest && (
-          <button
-            onClick={() => setOpen(true)}
-            aria-label="Ubah profil"
-            title="Ubah profil"
-            className="ml-1 flex h-7 w-7 items-center justify-center rounded-full text-slate-600 transition hover:bg-slate-100 cursor-pointer"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
       )}
 
-      {open && <ProfileModal session={session} onClose={() => setOpen(false)} />}
+      {open && (
+        <ProfileModal session={session} onClose={() => setOpen(false)} />
+      )}
     </>
   );
 }
@@ -82,12 +92,22 @@ function ProfileModal({
 }) {
   const meta = session.user.user_metadata ?? {};
   const [name, setName] = useState(displayName(session));
-  const [character, setCharacter] = useState<Character>(
-    (meta.character as Character | undefined) ?? "karakter_1",
+  // Menyimpan nilai apa adanya (bisa male_3, female_2, atau karakter_1). Preset tidak berubah
+  // kecuali tombol gender diklik dan gender-nya memang berbeda.
+  const [character, setCharacter] = useState<string>(
+    (meta.character as string | undefined) ?? "karakter_1",
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  const currentGender = genderOf(character);
+
+  const pickGender = (opt: (typeof GENDER_OPTIONS)[number]) => {
+    // Klik gender yang sama dengan sekarang: pertahankan preset yang dipilih
+    if (opt.gender === currentGender) return;
+    setCharacter(opt.preset);
+  };
 
   const save = async () => {
     const clean = name.trim().slice(0, 20);
@@ -146,13 +166,13 @@ function ProfileModal({
         <p className="mt-5 text-sm font-bold">Karakter</p>
         <div className="mt-2 grid grid-cols-2 gap-3">
           {GENDER_OPTIONS.map((opt) => {
-            const active = character === opt.character;
+            const active = currentGender === opt.gender;
             return (
               <button
-                key={opt.character}
+                key={opt.gender}
                 type="button"
                 disabled={saving}
-                onClick={() => setCharacter(opt.character)}
+                onClick={() => pickGender(opt)}
                 aria-pressed={active}
                 className={`rounded-xl border px-4 py-3 text-sm font-semibold transition cursor-pointer ${
                   active
@@ -165,6 +185,10 @@ function ProfileModal({
             );
           })}
         </div>
+        <p className="mt-2 text-[11px] text-slate-500">
+          Pilihan avatar lengkap (3 cowok, 3 cewek) ada di menu Ganti Avatar di
+          ponsel.
+        </p>
 
         {error && (
           <div className="mt-4 flex items-start gap-2 rounded-xl bg-rose-50 px-3.5 py-3 text-xs text-rose-600">
@@ -182,7 +206,7 @@ function ProfileModal({
           {saved ? "Tersimpan" : "Simpan"}
         </button>
         <p className="mt-3 text-center text-[11px] text-slate-500">
-          Nama dan karakter baru tampil ke pemain lain setelah kamu masuk ulang ke ruangan.
+          Perubahan langsung tampil ke pemain lain di ruangan yang sama.
         </p>
 
         <button

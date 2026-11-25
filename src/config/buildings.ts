@@ -192,36 +192,39 @@ export const BUILDINGS: BuildingConfig[] = [
       // +90° agar dinding barat menghadap +Z. Ini perkiraan dari posisi node.
       modelCenter: [-0.12, 0, 0.2],
       modelRotationY: Math.PI / 2,
-      bounds: { minX: -4.5, maxX: 4.5, minZ: -9.4, maxZ: 9.4 },
+      bounds: { minX: -5.0, maxX: 8.5, minZ: -10.8, maxZ: 13.0 },
       spawn: [-0.72, 0, 8.2],
       exit: { position: [-0.72, 0, 10.2], radius: 1.0 },
       obstacles: [
-        // Dinding (dari mesh Wall di .glb, sudah dipotong di pintu)
-        { minX: -5.36, maxX: -5.21, minZ: -11.23, maxZ: -5.08 },
-        { minX: -5.36, maxX: -5.21, minZ: -5.23, maxZ: 9.62 },
-        { minX: -5.36, maxX: -5.21, minZ: 9.62, maxZ: 9.77 },
-        { minX: -5.36, maxX: -5.21, minZ: 9.64, maxZ: 13.64 },
-        { minX: -5.36, maxX: -0.16, minZ: -5.23, maxZ: -5.08 },
-        { minX: -5.21, maxX: -1.23, minZ: 9.62, maxZ: 9.77 },
-        { minX: -5.21, maxX: -0.33, minZ: -0.08, maxZ: 0.07 },
-        { minX: -5.21, maxX: -0.26, minZ: 5.43, maxZ: 5.59 },
-        { minX: -0.26, maxX: -0.11, minZ: -5.01, maxZ: -4.53 },
-        { minX: -0.26, maxX: -0.11, minZ: -4.53, maxZ: -1.08 },
-        { minX: -0.26, maxX: -0.11, minZ: -0.07, maxZ: 0.1 },
-        { minX: -0.26, maxX: -0.11, minZ: 1.12, maxZ: 6.4 },
-        // Sekat lobi dibuka di z 6,69 s.d. 7,9 agar bisa lewat ke ruangan dalam
-        { minX: -0.26, maxX: -0.11, minZ: 7.9, maxZ: 9.55 },
-        { minX: -0.26, maxX: -0.1, minZ: 6.47, maxZ: 6.62 },
-        { minX: -0.22, maxX: 4.79, minZ: 9.62, maxZ: 9.77 },
-        { minX: 0.86, maxX: 4.79, minZ: -5.23, maxZ: -5.08 },
-        { minX: 0.92, maxX: 4.57, minZ: 6.47, maxZ: 6.62 },
-        { minX: 2.62, maxX: 2.78, minZ: -11.08, maxZ: -10.74 },
-        { minX: 2.64, maxX: 2.79, minZ: -8.57, maxZ: -8.05 },
+        // Dinding luar (barat, utara, timur, teras depan)
+        { minX: -5.36, maxX: -5.21, minZ: -11.23, maxZ: 13.64 },
+        { minX: -5.21, maxX: 8.94, minZ: -11.23, maxZ: -11.07 },
+        { minX: 8.79, maxX: 8.94, minZ: -11.22, maxZ: 13.42 },
+        { minX: -5.36, maxX: 4.79, minZ: 13.48, maxZ: 13.64 },
+        // Dinding depan selatan (pintu masuk utama di x -1.42 s.d. -0.02 terbuka)
+        { minX: -5.21, maxX: -1.42, minZ: 9.62, maxZ: 9.77 },
+        { minX: -0.02, maxX: 4.79, minZ: 9.62, maxZ: 9.77 },
+        // Sekat lobi & ruang kanan-depan (padat di z 6.65 s.d. 9.62; koridor z 5.25 s.d. 6.65 terbuka)
+        { minX: -0.26, maxX: -0.11, minZ: 6.65, maxZ: 9.62 },
+        { minX: -0.26, maxX: 4.64, minZ: 6.65, maxZ: 6.8 },
+        // Tulang tengah (terbuka di z 5.25 s.d. 6.65, z 0.10 s.d. 1.40, dan z -1.40 s.d. -0.10)
+        { minX: -0.26, maxX: -0.11, minZ: 1.4, maxZ: 5.25 },
+        { minX: -0.26, maxX: -0.11, minZ: -5.08, maxZ: -1.4 },
+        // Sekat ruangan sisi kiri
+        { minX: -5.21, maxX: -0.26, minZ: 5.25, maxZ: 5.43 },
+        { minX: -5.21, maxX: -0.26, minZ: -0.08, maxZ: 0.07 },
+        // Sekat melintang belakang (pintu di x -0.35 s.d. 1.05 terbuka)
+        { minX: -5.21, maxX: -0.35, minZ: -5.23, maxZ: -5.08 },
+        { minX: 1.05, maxX: 4.64, minZ: -5.23, maxZ: -5.08 },
+        // Dinding pemisah sayap kanan (terbuka di z 5.25 s.d. 6.65)
+        { minX: 4.64, maxX: 4.79, minZ: -11.07, maxZ: 5.25 },
+        { minX: 4.64, maxX: 4.79, minZ: 6.65, maxZ: 9.77 },
+        // Ruangan kecil belakang tengah
+        { minX: 2.64, maxX: 4.64, minZ: -9.7, maxZ: -9.55 },
         { minX: 2.64, maxX: 4.64, minZ: -8.2, maxZ: -8.05 },
-        { minX: 2.86, maxX: 4.64, minZ: -9.7, maxZ: -9.55 },
-        { minX: 4.64, maxX: 4.79, minZ: -11.23, maxZ: -5.23 },
-        { minX: 4.64, maxX: 4.79, minZ: -5.23, maxZ: 5.51 },
-        { minX: 4.64, maxX: 4.79, minZ: 6.52, maxZ: 9.77 },
+        // Ruangan belakang sayap kanan
+        { minX: 6.95, maxX: 7.1, minZ: -11.07, maxZ: -5.07 },
+        { minX: 6.95, maxX: 8.79, minZ: -5.22, maxZ: -5.07 },
       ],
     },
   },

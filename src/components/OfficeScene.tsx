@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 import { playerPos } from "@/lib/playerPosition";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
 import { type Socket } from "socket.io-client";
 import * as THREE from "three";
@@ -223,10 +223,13 @@ export function OfficeScene({
   const keysPressed = useRef<Record<string, boolean>>({});
   const emitTimer = useRef(0);
   const posReportTimer = useRef(0);
+  const debugPosTimer = useRef(0);
   /** Ringkasan state terakhir yang dikirim. Kosong = wajib kirim ulang. */
   const lastSentRef = useRef("");
   const [isFirstPerson, setIsFirstPerson] = useState(false);
   const prevModeRef = useRef<CameraMode>(cameraMode);
+  const desiredDistRef = useRef<number | null>(null);
+  const { gl } = useThree();
 
   // Vektor yang dipakai ulang setiap frame. Tidak ada alokasi baru di dalam useFrame.
   const camTargetVec = useRef(new THREE.Vector3(spawn[0], 1.55, spawn[2]));
@@ -240,8 +243,13 @@ export function OfficeScene({
 
   // Beri tahu HUD bahwa zona sekarang interior
   useEffect(() => {
-    if (isInterior) onZoneChange("interior");
-  }, [isInterior, onZoneChange]);
+    if (isInterior) {
+      onZoneChange("interior");
+      console.log(
+        `[Interior Pos] spawn x=${spawn[0].toFixed(2)}, y=${spawn[1].toFixed(2)}, z=${spawn[2].toFixed(2)}`,
+      );
+    }
+  }, [isInterior, onZoneChange, spawn]);
 
   // Tombol E untuk naik/turun trem hanya aktif di kota dan untuk pemain (bukan pengamat)
   useEffect(() => {
@@ -328,6 +336,43 @@ export function OfficeScene({
     const keys = keysPressed.current;
     for (const code of Object.keys(keys)) keys[code] = false;
   }, [isChatFocused]);
+
+  // Smooth & responsif zoom dengan scroll wheel / trackpad (mengurangi jumlah guliran)
+  useEffect(() => {
+    const dom = gl.domElement;
+    const minDist = 0.3;
+    const maxDist = isInterior ? 14 : 48;
+
+    const onWheel = (e: WheelEvent) => {
+      if (cameraMode === "first" || !controlsRef.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const normDelta =
+        e.deltaMode === 1
+          ? e.deltaY * 33
+          : e.deltaMode === 2
+            ? e.deltaY * 300
+            : e.deltaY;
+
+      const curDist =
+        desiredDistRef.current ??
+        controlsRef.current.object.position.distanceTo(
+          controlsRef.current.target,
+        );
+      const next = clamp(
+        curDist * Math.exp(normDelta * 0.0028),
+        minDist,
+        maxDist,
+      );
+      desiredDistRef.current = next;
+    };
+
+    dom.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    return () => {
+      dom.removeEventListener("wheel", onWheel, { capture: true });
+    };
+  }, [gl, cameraMode, isInterior]);
 
   const readyFramesRef = useRef(0);
   const readySentRef = useRef(false);
@@ -512,15 +557,16 @@ export function OfficeScene({
 
       // Saat mode berganti, atur ulang posisi kamera terhadap karakter
       if (prevModeRef.current !== cameraMode) {
+        desiredDistRef.current = null;
         offset.copy(camera.position).sub(controls.target);
         offset.y = 0;
         if (offset.lengthSq() < 1e-6) offset.set(0, 0, 1);
         offset.normalize();
 
         if (cameraMode === "first") {
-          // Kamera menempel di kepala, arah pandang mengikuti arah kamera sebelumnya
+          // Kamera menempel di ketinggian mata avatar, arah pandang mengikuti arah kamera sebelumnya
           camera.position.copy(controls.target).addScaledVector(offset, 0.6);
-          camera.position.y = controls.target.y + 0.1;
+          camera.position.y = cur.position[1] + 1.34;
         } else if (prevModeRef.current === "first") {
           // Keluar dari orang pertama: mundur kembali
           camera.position.set(
@@ -532,6 +578,26 @@ export function OfficeScene({
         prevModeRef.current = cameraMode;
       }
 
+      // Interpolasi jarak zoom agar perpindahan terasa halus
+      if (desiredDistRef.current !== null && cameraMode !== "first") {
+        const curDist = camera.position.distanceTo(controls.target);
+        const nextDist = THREE.MathUtils.lerp(
+          curDist,
+          desiredDistRef.current,
+          1 - Math.exp(-12 * delta),
+        );
+        if (curDist > 1e-5) {
+          offset
+            .copy(camera.position)
+            .sub(controls.target)
+            .multiplyScalar(nextDist / curDist);
+          camera.position.copy(controls.target).add(offset);
+        }
+        if (Math.abs(nextDist - desiredDistRef.current) < 0.005) {
+          desiredDistRef.current = null;
+        }
+      }
+
       const dist = camera.position.distanceTo(controls.target);
 
       // Jika di-zoom sangat dekat (<= 1.25m), aktifkan First Person
@@ -541,8 +607,8 @@ export function OfficeScene({
       }
 
       if (cameraMode === "follow" || enterFP) {
-        // Ketinggian mata karakter manusia ~1.56m
-        const targetEyeY = enterFP ? 1.56 : 1.2;
+        // Ketinggian mata avatar (pusat kepala 1.585 * AVATAR_SCALE 0.84 ≈ 1.34m)
+        const targetEyeY = enterFP ? 1.34 : 1.2;
         camTargetVec.current.set(
           cur.position[0],
           cur.position[1] + targetEyeY,
@@ -568,6 +634,17 @@ export function OfficeScene({
       if (snapshot !== lastSentRef.current) {
         lastSentRef.current = snapshot;
         socket.emit("player:move", cur);
+      }
+    }
+
+    // Log koordinat saat bergerak/menekan tombol arah di dalam ruangan untuk debugging collision
+    if (isInterior && moveDir.lengthSq() > 0) {
+      debugPosTimer.current += delta;
+      if (debugPosTimer.current >= 0.4) {
+        debugPosTimer.current = 0;
+        console.log(
+          `[Interior Pos] x=${cur.position[0].toFixed(2)}, y=${cur.position[1].toFixed(2)}, z=${cur.position[2].toFixed(2)}`,
+        );
       }
     }
 

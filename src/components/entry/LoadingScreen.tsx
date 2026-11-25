@@ -94,7 +94,7 @@ function ParallaxLayer({
 }
 
 export default function LoadingScreen({ onDone }: { onDone?: () => void }) {
-  const { progress, total } = useProgress();
+  const { active, progress, total } = useProgress();
   const reduce = useReducedMotion();
 
   // Progres semu hanya dipakai saat belum ada aset yang terdaftar (total === 0).
@@ -122,7 +122,7 @@ export default function LoadingScreen({ onDone }: { onDone?: () => void }) {
   }, []);
 
   const percent = total === 0 ? fallback : Math.min(100, Math.round(progress));
-  const ready = minElapsed && (total === 0 || progress >= 100);
+  const ready = minElapsed && (total === 0 || (!active && progress >= 100));
   const ratio = Math.min(1, percent / 100);
 
   useEffect(() => {
@@ -223,7 +223,7 @@ export default function LoadingScreen({ onDone }: { onDone?: () => void }) {
             ))}
           </ParallaxLayer>
 
-          {/* Lapis 4 (paling dekat): siluet gedung yang tumbuh mengikuti progres */}
+          {/* Lapis 4 (paling dekat): siluet gedung yang tumbuh mengikuti progres & bergerak seperti wave */}
           <ParallaxLayer
             mx={mx}
             my={my}
@@ -233,13 +233,24 @@ export default function LoadingScreen({ onDone }: { onDone?: () => void }) {
             {SKYLINE.map((h, i) => (
               <motion.div
                 key={i}
-                className="w-[7%] max-w-8.5 origin-bottom rounded-t-md bg-linear-to-t from-blue-700/60 to-blue-400/40"
+                className="w-[7%] max-w-8.5 origin-bottom"
                 initial={{ height: "4%" }}
                 animate={{
                   height: `${(h * 0.38 * (0.2 + 0.8 * ratio)).toFixed(2)}%`,
                 }}
                 transition={{ duration: 0.6, ease: "easeOut", delay: i * 0.04 }}
-              />
+              >
+                <motion.div
+                  className="h-full w-full origin-bottom rounded-t-md bg-linear-to-t from-blue-700/60 to-blue-400/40"
+                  animate={reduce ? undefined : { scaleY: [0.55, 1.15, 0.55] }}
+                  transition={{
+                    duration: 1.6,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: i * 0.14,
+                  }}
+                />
+              </motion.div>
             ))}
           </ParallaxLayer>
 

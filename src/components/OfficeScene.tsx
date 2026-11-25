@@ -1,4 +1,4 @@
-﻿import {
+import {
   type ReactNode,
   type RefObject,
   useEffect,
@@ -71,6 +71,8 @@ interface OfficeSceneProps {
   spectator?: boolean;
   /** Posisi awal avatar di kota (mis. pintu gedung yang baru ditinggalkan) */
   initialPosition?: Vec3;
+  /** Dipanggil setelah lingkungan (GLTF/Suspense) selesai dimuat dan frame pertama ter-render */
+  onSceneReady?: () => void;
   /** Jika diisi, scene menjadi interior gedung, bukan kota */
   interior?: {
     config: InteriorConfig;
@@ -184,6 +186,7 @@ export function OfficeScene({
   weatherOverride = null,
   spectator = false,
   initialPosition,
+  onSceneReady,
   interior,
 }: OfficeSceneProps) {
   const isInterior = interior !== undefined;
@@ -326,7 +329,17 @@ export function OfficeScene({
     for (const code of Object.keys(keys)) keys[code] = false;
   }, [isChatFocused]);
 
+  const readyFramesRef = useRef(0);
+  const readySentRef = useRef(false);
+
   useFrame((state, rawDelta) => {
+    if (!readySentRef.current) {
+      readyFramesRef.current += 1;
+      if (readyFramesRef.current >= 2) {
+        readySentRef.current = true;
+        onSceneReady?.();
+      }
+    }
     const delta = Math.min(rawDelta, MAX_DT);
     const keys = keysPressed.current;
     const camera = state.camera;

@@ -45,6 +45,9 @@ const DEFAULT_SPAWN: Vec3 = [0, 0, 3];
 const LEAVE_MARGIN = 1.5;
 // Setelah pindah ruangan selesai, popup masuk gedung ditahan sebentar agar scene sempat stabil
 const PROMPT_SETTLE_MS = 1500;
+// Durasi minimum overlay transisi ruangan tampil agar pintu sempat menutup sempurna
+// dan scene tujuan sempat termuat di balik layar sebelum pintu terbuka lagi
+const MIN_TRANSITION_MS = 1350;
 
 const EXTERIOR_CAMERA = { position: [0, 16, 22] as Vec3, fov: 42 };
 const INTERIOR_CAMERA = { position: [0, 9, 11] as Vec3, fov: 42 };
@@ -254,6 +257,12 @@ function AppContent() {
   const promptBlockedUntilRef = useRef(0);
   /** Posisi kota tempat pemain keluar dari gedung (pintu gedung tersebut) */
   const cityReturnPosRef = useRef<Vec3>(DEFAULT_SPAWN);
+  /** Resolver yang dipanggil saat OfficeScene tujuan selesai memuat aset & merender frame pertama */
+  const sceneReadyResolveRef = useRef<(() => void) | null>(null);
+  const handleSceneReady = useCallback(() => {
+    sceneReadyResolveRef.current?.();
+    sceneReadyResolveRef.current = null;
+  }, []);
 
   // Dipanggil dari OfficeScene dengan throttle
   const handleLocalPosition = useCallback((pos: Vec3) => {
@@ -335,6 +344,12 @@ function AppContent() {
     setTransitionError(null);
 
     const run = async () => {
+      const minWait = new Promise<void>((resolve) =>
+        window.setTimeout(resolve, MIN_TRANSITION_MS),
+      );
+      const sceneReadyWait = new Promise<void>((resolve) => {
+        sceneReadyResolveRef.current = resolve;
+      });
       try {
         if (urlBuildingKey) {
           const building = getBuilding(urlBuildingKey);
@@ -344,12 +359,14 @@ function AppContent() {
           }
           await enterBuilding(building.key, building.interior.spawn);
           setActiveBuildingKey(building.key);
+          await Promise.all([minWait, sceneReadyWait]);
         } else {
           const prev = getBuilding(activeBuildingKey);
           // Jangan langsung muncul popup lagi di pintu tempat pemain keluar
           dismissedKeyRef.current = prev?.key ?? null;
           await enterRoom(exteriorRoomId, prev?.entrance ?? DEFAULT_SPAWN);
           setActiveBuildingKey(null);
+          await Promise.all([minWait, sceneReadyWait]);
         }
       } catch (err) {
         console.error("Gagal berpindah ruangan:", err);
@@ -358,6 +375,7 @@ function AppContent() {
         );
         navigate("/", { replace: true });
       } finally {
+        sceneReadyResolveRef.current = null;
         syncingToRef.current = undefined;
         transitioningRef.current = false;
         promptBlockedUntilRef.current = Date.now() + PROMPT_SETTLE_MS;
@@ -512,6 +530,7 @@ function AppContent() {
                 onLocalPositionChange={handleLocalPosition}
                 cameraMode={cameraMode}
                 timeMode={statusToTimeMode(localStatus)}
+                onSceneReady={handleSceneReady}
               />
             </SceneCanvas>
           }
@@ -532,6 +551,7 @@ function AppContent() {
                     onZoneChange={setCurrentZone}
                     cameraMode={cameraMode}
                     isChatFocused={isChatFocused || showJoinModal}
+                    onSceneReady={handleSceneReady}
                     onExit={handleExitBuilding}
                   />
                 )}

@@ -16,6 +16,7 @@ interface InteriorPageProps {
   onZoneChange: (zone: string) => void;
   cameraMode: CameraMode;
   isChatFocused: boolean;
+  onSceneReady?: () => void;
   onExit: () => void;
 }
 
@@ -29,6 +30,7 @@ export default function InteriorPage({
   onZoneChange,
   cameraMode,
   isChatFocused,
+  onSceneReady,
   onExit,
 }: InteriorPageProps) {
   return (
@@ -41,6 +43,7 @@ export default function InteriorPage({
       onZoneChange={onZoneChange}
       isChatFocused={isChatFocused}
       cameraMode={cameraMode}
+      onSceneReady={onSceneReady}
       interior={{ config: building.interior, onExit }}
     />
   );

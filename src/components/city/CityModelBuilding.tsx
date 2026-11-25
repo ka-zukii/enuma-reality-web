@@ -1,11 +1,8 @@
-import { useEffect, useMemo, useRef } from "react";
 import { Html, RoundedBox } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
-import * as THREE from "three";
 import { Building2, Coffee, Store } from "lucide-react";
+import { LABEL_STYLE, SignBoard } from "@/components/city/model/SignBoard";
+import { SlidingDoors } from "@/components/city/model/SlidingDoors";
 import type { BuildingConfig, BuildingInfo } from "@/config/buildings";
-import { CITY_DOORS } from "@/config/doors";
-import { doorReady, playerPos } from "@/lib/playerPosition";
 
 interface CityModelBuildingProps {
   config: BuildingConfig;
@@ -16,180 +13,6 @@ interface CityModelBuildingProps {
   top: number;
   showLabel?: boolean;
   isNight?: boolean;
-}
-
-const LABEL_STYLE: Record<
-  string,
-  { subtitle: string; icon: "shop" | "cafe" | "office" }
-> = {
-  "warung-madura": { subtitle: "Jajanan & Minuman", icon: "shop" },
-  indomart: { subtitle: "Minimarket & Kebutuhan Harian", icon: "shop" },
-  "enuma-hq": { subtitle: "Pusat Kantor Virtual", icon: "office" },
-  "lunara-cafe": { subtitle: "Kopi & Pastry", icon: "cafe" },
-};
-
-/** Membuat tekstur papan nama gedung berbasis Canvas */
-function makeSignTexture(
-  title: string,
-  subtitle: string,
-  bg: string,
-  fg: string,
-  accent: string,
-): THREE.CanvasTexture {
-  const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 128;
-  const g = canvas.getContext("2d");
-  if (g) {
-    g.fillStyle = bg;
-    g.fillRect(0, 0, 512, 128);
-    g.fillStyle = accent;
-    g.fillRect(0, 0, 512, 12);
-    g.fillRect(0, 116, 512, 12);
-    g.fillStyle = fg;
-    g.font = "bold 46px sans-serif";
-    g.textAlign = "center";
-    g.textBaseline = "middle";
-    g.fillText(title, 256, 54);
-    g.font = "600 20px sans-serif";
-    g.globalAlpha = 0.85;
-    g.fillText(subtitle, 256, 92);
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function SignBoard({
-  title,
-  subtitle,
-  bg,
-  fg,
-  accent,
-  position,
-  size = [4.2, 0.9],
-  isNight = false,
-}: {
-  title: string;
-  subtitle: string;
-  bg: string;
-  fg: string;
-  accent: string;
-  position: [number, number, number];
-  size?: [number, number];
-  isNight?: boolean;
-}) {
-  const tex = useMemo(
-    () => makeSignTexture(title, subtitle, bg, fg, accent),
-    [title, subtitle, bg, fg, accent],
-  );
-  useEffect(() => () => tex.dispose(), [tex]);
-
-  return (
-    <group position={position}>
-      <mesh>
-        <boxGeometry args={[size[0] + 0.14, size[1] + 0.14, 0.14]} />
-        <meshStandardMaterial color="#1e293b" roughness={0.4} metalness={0.5} />
-      </mesh>
-      <mesh position={[0, 0, 0.08]}>
-        <planeGeometry args={size} />
-        <meshStandardMaterial
-          map={tex}
-          emissive="#ffffff"
-          emissiveMap={tex}
-          emissiveIntensity={isNight ? 0.85 : 0.2}
-          roughness={0.3}
-        />
-      </mesh>
-    </group>
-  );
-}
-
-/** Pintu geser kaca berbingkai aluminium + gagang */
-function SlidingDoors({
-  frontZ,
-  doorCfgKey,
-  entrance,
-  glassColor,
-  isNight,
-}: {
-  frontZ: number;
-  doorCfgKey: string;
-  entrance: [number, number, number];
-  glassColor: string;
-  isNight: boolean;
-}) {
-  const doorCfg = CITY_DOORS[doorCfgKey];
-  const leftRef = useRef<THREE.Group>(null);
-  const rightRef = useRef<THREE.Group>(null);
-  const openRef = useRef(0);
-
-  useFrame((_, delta) => {
-    if (!doorCfg) return;
-    const dx = playerPos.x - entrance[0];
-    const dz = playerPos.z - entrance[2];
-    const near = Math.hypot(dx, dz) <= doorCfg.openRadius;
-    const target = near ? 1 : 0;
-    openRef.current += (target - openRef.current) * Math.min(1, delta * 5);
-    const p = openRef.current;
-
-    if (leftRef.current) leftRef.current.position.x = -0.52 - 0.85 * p;
-    if (rightRef.current) rightRef.current.position.x = 0.52 + 0.85 * p;
-    doorReady[doorCfgKey] = p > 0.95;
-  });
-
-  return (
-    <group position={[0, 0.2, frontZ]}>
-      {/* Kusen pintu */}
-      <mesh position={[0, 1.15, 0.02]}>
-        <boxGeometry args={[2.38, 2.32, 0.1]} />
-        <meshStandardMaterial color="#1e293b" metalness={0.5} roughness={0.35} />
-      </mesh>
-      {/* Latar dalam pintu */}
-      <mesh position={[0, 1.15, 0.08]}>
-        <planeGeometry args={[2.05, 2.18]} />
-        <meshStandardMaterial
-          color={isNight ? "#fef3c7" : "#1e293b"}
-          emissive={isNight ? "#f59e0b" : "#000000"}
-          emissiveIntensity={isNight ? 0.65 : 0}
-        />
-      </mesh>
-      {/* Daun pintu kiri */}
-      <group ref={leftRef} position={[-0.52, 1.12, 0.1]}>
-        <mesh>
-          <boxGeometry args={[0.98, 2.15, 0.05]} />
-          <meshStandardMaterial
-            color={glassColor}
-            transparent
-            opacity={0.72}
-            roughness={0.1}
-            metalness={0.25}
-          />
-        </mesh>
-        <mesh position={[0.38, 0, 0.04]}>
-          <boxGeometry args={[0.04, 0.55, 0.04]} />
-          <meshStandardMaterial color="#cbd5e1" metalness={0.85} roughness={0.2} />
-        </mesh>
-      </group>
-      {/* Daun pintu kanan */}
-      <group ref={rightRef} position={[0.52, 1.12, 0.1]}>
-        <mesh>
-          <boxGeometry args={[0.98, 2.15, 0.05]} />
-          <meshStandardMaterial
-            color={glassColor}
-            transparent
-            opacity={0.72}
-            roughness={0.1}
-            metalness={0.25}
-          />
-        </mesh>
-        <mesh position={[-0.38, 0, 0.04]}>
-          <boxGeometry args={[0.04, 0.55, 0.04]} />
-          <meshStandardMaterial color="#cbd5e1" metalness={0.85} roughness={0.2} />
-        </mesh>
-      </group>
-    </group>
-  );
 }
 
 /**
@@ -461,7 +284,11 @@ export function CityModelBuilding({
             </mesh>
             <mesh position={[0, 2.95, frontZ + 0.85]} castShadow>
               <boxGeometry args={[5.2, 0.16, 1.7]} />
-              <meshStandardMaterial color="#0f172a" metalness={0.6} roughness={0.3} />
+              <meshStandardMaterial
+                color="#0f172a"
+                metalness={0.6}
+                roughness={0.3}
+              />
             </mesh>
             <SignBoard
               title="ENUMA TECHNOLOGY"
@@ -507,7 +334,11 @@ export function CityModelBuilding({
               <meshStandardMaterial color="#6f411f" roughness={0.55} />
             </mesh>
             {/* Kanopi terakota kafe */}
-            <mesh position={[0, 3.15, frontZ + 0.85]} rotation={[0.16, 0, 0]} castShadow>
+            <mesh
+              position={[0, 3.15, frontZ + 0.85]}
+              rotation={[0.16, 0, 0]}
+              castShadow
+            >
               <boxGeometry args={[w - 1.2, 0.16, 1.7]} />
               <meshStandardMaterial color="#cc582b" roughness={0.5} />
             </mesh>
@@ -557,7 +388,10 @@ export function CityModelBuilding({
             />
             {/* Unit AC di dinding samping seperti pada cafe.glb */}
             {[-4, 0, 4].map((zOff) => (
-              <mesh key={`cafe-ac-${zOff}`} position={[w / 2 + 0.25, 3.2, zOff]}>
+              <mesh
+                key={`cafe-ac-${zOff}`}
+                position={[w / 2 + 0.25, 3.2, zOff]}
+              >
                 <boxGeometry args={[0.45, 0.6, 0.95]} />
                 <meshStandardMaterial color="#e2e8f0" roughness={0.5} />
               </mesh>

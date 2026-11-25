@@ -2,378 +2,21 @@ import { type RefObject, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Billboard, Html, RoundedBox, Text } from "@react-three/drei";
 import * as THREE from "three";
-import { type PlayerTickData } from "@/hooks/useOfficeSocket";
 import { riderWorldPos, stepTramView, TRAM } from "@/lib/tramRuntime";
 import { getStatusMeta } from "@/config/status";
-import { type MemberRole, type PlayerStatus } from "@/types";
+import { type MemberRole } from "@/types";
 import { getRoleMeta } from "@/lib/roles";
+import { resolveAvatarPreset, useLocalAvatarId } from "@/config/avatars";
+import { Face } from "@/components/avatar/Face";
+import { Hair } from "@/components/avatar/Hair";
 import {
-  resolveAvatarPreset,
-  useLocalAvatarId,
-  type AvatarPreset,
-} from "@/config/avatars";
-
-interface Avatar3DProps {
-  userId: string;
-  fullName: string;
-  color?: string;
-  avatarId?: string | null;
-  initialPosition: [number, number, number];
-  isLocal?: boolean;
-  localStateRef?: RefObject<PlayerTickData>;
-  remoteTicksRef?: RefObject<Record<string, PlayerTickData>>;
-  bubbleMessage?: string | null;
-  isFirstPerson?: boolean;
-  role?: MemberRole | null;
-  jobTitle?: string | null;
-  status?: PlayerStatus | null;
-}
-
-const ROLE_ACCENT: Record<MemberRole, string> = {
-  OWNER: "#f59e0b",
-  ADMIN: "#a855f7",
-  MEMBER: "#0ea5e9",
-  GUEST: "#94a3b8",
-};
-
-function lerpAngle(a: number, b: number, t: number): number {
-  const diff = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI;
-  const shortest = diff < -Math.PI ? diff + Math.PI * 2 : diff;
-  return a + shortest * t;
-}
-
-// Semua komponen kepala memakai koordinat lokal terhadap pusat kepala (0, 0.145, 0)
-// di dalam headGroupRef yang berporos di leher (0, 1.44, 0).
-const HEAD_R = 0.13;
-const HEAD_SCALE: [number, number, number] = [0.92, 1.06, 0.94];
-
-// ---------------------------------------------------------------
-// Rambut & Hijab (koordinat lokal terhadap pusat kepala [0, 0.145, 0])
-// ---------------------------------------------------------------
-function Hair({ look }: { look: AvatarPreset }) {
-  const hairMat = <meshStandardMaterial color={look.hair} roughness={0.65} />;
-
-  if (look.hairStyle === "hijab") {
-    return (
-      <group>
-        {/* Ciput di dahi */}
-        <mesh position={[0, 0.015, 0.005]} scale={[0.95, 1.07, 0.96]}>
-          <sphereGeometry args={[HEAD_R * 1.02, 24, 18]} />
-          <meshStandardMaterial color={look.collar} roughness={0.7} />
-        </mesh>
-        {/* Tudung hijab utama */}
-        <mesh position={[0, 0.005, -0.014]} scale={[1.01, 1.09, 1.03]} castShadow>
-          <sphereGeometry args={[HEAD_R * 1.06, 24, 18]} />
-          {hairMat}
-        </mesh>
-        {/* Kain hijab menutup leher & bahu atas */}
-        <mesh position={[0, -0.14, -0.01]} castShadow>
-          <cylinderGeometry args={[0.105, 0.145, 0.16, 20]} />
-          {hairMat}
-        </mesh>
-      </group>
-    );
-  }
-
-  return (
-    <group>
-      {/* Tudung rambut menempel rapi pada kepala */}
-      <mesh position={[0, 0.012, -0.01]} scale={[0.96, 1.08, 0.99]} castShadow>
-        <sphereGeometry
-          args={[HEAD_R * 1.045, 24, 18, 0, Math.PI * 2, 0, Math.PI * 0.56]}
-        />
-        {hairMat}
-      </mesh>
-      {/* Rambut belakang kepala */}
-      <mesh position={[0, -0.005, -0.036]} scale={[0.93, 0.98, 0.85]} castShadow>
-        <sphereGeometry args={[HEAD_R * 0.98, 20, 16]} />
-        {hairMat}
-      </mesh>
-
-      {look.hairStyle === "short" && (
-        <>
-          <RoundedBox
-            args={[0.17, 0.052, 0.14]}
-            radius={0.024}
-            smoothness={4}
-            position={[0, 0.105, 0.015]}
-            rotation={[-0.16, 0, 0]}
-            castShadow
-          >
-            {hairMat}
-          </RoundedBox>
-          {[-0.112, 0.112].map((x) => (
-            <mesh key={`sb-${x}`} position={[x, -0.01, 0.015]}>
-              <boxGeometry args={[0.014, 0.06, 0.03]} />
-              {hairMat}
-            </mesh>
-          ))}
-        </>
-      )}
-
-      {look.hairStyle === "fade" && (
-        <RoundedBox
-          args={[0.15, 0.065, 0.13]}
-          radius={0.028}
-          smoothness={4}
-          position={[0, 0.115, 0.025]}
-          rotation={[-0.22, 0, 0]}
-          castShadow
-        >
-          {hairMat}
-        </RoundedBox>
-      )}
-
-      {look.hairStyle === "parted" && (
-        <>
-          <RoundedBox
-            args={[0.105, 0.042, 0.11]}
-            radius={0.02}
-            smoothness={3}
-            position={[-0.045, 0.1, 0.04]}
-            rotation={[0.1, 0.15, 0.24]}
-            castShadow
-          >
-            {hairMat}
-          </RoundedBox>
-          <RoundedBox
-            args={[0.105, 0.042, 0.11]}
-            radius={0.02}
-            smoothness={3}
-            position={[0.045, 0.1, 0.04]}
-            rotation={[0.1, -0.15, -0.24]}
-            castShadow
-          >
-            {hairMat}
-          </RoundedBox>
-        </>
-      )}
-
-      {look.hairStyle === "long" && (
-        <>
-          {/* Poni menyamping */}
-          <RoundedBox
-            args={[0.11, 0.04, 0.08]}
-            radius={0.018}
-            smoothness={3}
-            position={[-0.048, 0.088, 0.065]}
-            rotation={[0.25, 0.2, 0.3]}
-            castShadow
-          >
-            {hairMat}
-          </RoundedBox>
-          <RoundedBox
-            args={[0.11, 0.04, 0.08]}
-            radius={0.018}
-            smoothness={3}
-            position={[0.048, 0.088, 0.065]}
-            rotation={[0.25, -0.2, -0.3]}
-            castShadow
-          >
-            {hairMat}
-          </RoundedBox>
-          {/* Rambut panjang di belakang */}
-          <RoundedBox
-            args={[0.24, 0.3, 0.1]}
-            radius={0.045}
-            smoothness={4}
-            position={[0, -0.12, -0.075]}
-            castShadow
-          >
-            {hairMat}
-          </RoundedBox>
-          {[-0.11, 0.11].map((x) => (
-            <RoundedBox
-              key={`lock-${x}`}
-              args={[0.048, 0.22, 0.065]}
-              radius={0.022}
-              smoothness={3}
-              position={[x, -0.1, 0.01]}
-              castShadow
-            >
-              {hairMat}
-            </RoundedBox>
-          ))}
-        </>
-      )}
-
-      {look.hairStyle === "ponytail" && (
-        <>
-          <RoundedBox
-            args={[0.17, 0.042, 0.07]}
-            radius={0.018}
-            smoothness={3}
-            position={[0, 0.085, 0.072]}
-            rotation={[0.2, 0, 0]}
-            castShadow
-          >
-            {hairMat}
-          </RoundedBox>
-          {/* Ikat rambut & kuncir */}
-          <mesh position={[0, 0.065, -0.115]} rotation={[-0.5, 0, 0]}>
-            <torusGeometry args={[0.028, 0.009, 10, 16]} />
-            <meshStandardMaterial color={look.shirt} roughness={0.4} />
-          </mesh>
-          <mesh
-            position={[0, -0.04, -0.155]}
-            rotation={[0.32, 0, 0]}
-            scale={[0.8, 1.8, 0.8]}
-            castShadow
-          >
-            <sphereGeometry args={[0.058, 16, 14]} />
-            {hairMat}
-          </mesh>
-        </>
-      )}
-    </group>
-  );
-}
-
-// ---------------------------------------------------------------
-// Wajah (koordinat lokal terhadap pusat kepala [0, 0.145, 0])
-// Permukaan depan kepala: z ≈ 0.122 di tengah, z ≈ 0.112 di posisi mata (x=±0.044)
-// ---------------------------------------------------------------
-function Face({
-  look,
-  eyesRef,
-}: {
-  look: AvatarPreset;
-  eyesRef: RefObject<THREE.Group | null>;
-}) {
-  const isFemale = look.gender === "female";
-  const eyeZ = 0.112;
-  const skinMat = <meshStandardMaterial color={look.skin} roughness={0.48} />;
-
-  return (
-    <group>
-      {/* Telinga */}
-      {[-0.118, 0.118].map((x) => (
-        <mesh
-          key={`ear-${x}`}
-          position={[x, -0.005, -0.005]}
-          scale={[0.5, 1, 0.7]}
-          castShadow
-        >
-          <sphereGeometry args={[0.024, 12, 10]} />
-          {skinMat}
-        </mesh>
-      ))}
-
-      {/* Hidung halus */}
-      <mesh position={[0, -0.014, 0.122]} scale={[0.9, 1.1, 0.8]}>
-        <sphereGeometry args={[0.011, 12, 10]} />
-        {skinMat}
-      </mesh>
-
-      {/* Mata ekspresif + animasi kedip */}
-      <group ref={eyesRef} position={[0, 0.012, eyeZ]}>
-        {[-0.044, 0.044].map((x) => (
-          <group key={`eye-${x}`} position={[x, 0, 0]}>
-            {/* Sklera */}
-            <mesh scale={[1.05, isFemale ? 1.12 : 0.96, 0.5]}>
-              <sphereGeometry args={[0.02, 14, 12]} />
-              <meshStandardMaterial color="#ffffff" roughness={0.15} />
-            </mesh>
-            {/* Iris berwarna */}
-            <mesh position={[0, 0, 0.006]} scale={[1, 1.05, 0.5]}>
-              <sphereGeometry args={[0.014, 12, 10]} />
-              <meshStandardMaterial color={look.iris} roughness={0.2} />
-            </mesh>
-            {/* Pupil */}
-            <mesh position={[0, 0, 0.01]}>
-              <sphereGeometry args={[0.0075, 10, 8]} />
-              <meshStandardMaterial color="#090d16" roughness={0.1} />
-            </mesh>
-            {/* Kilau mata */}
-            <mesh position={[0.005, 0.005, 0.015]}>
-              <sphereGeometry args={[0.004, 8, 6]} />
-              <meshBasicMaterial color="#ffffff" />
-            </mesh>
-          </group>
-        ))}
-      </group>
-
-      {/* Alis */}
-      {[-0.044, 0.044].map((x) => (
-        <mesh
-          key={`brow-${x}`}
-          position={[x, 0.046, eyeZ - 0.002]}
-          rotation={[0, 0, x < 0 ? 0.08 : -0.08]}
-        >
-          <boxGeometry args={[0.034, 0.006, 0.008]} />
-          <meshStandardMaterial color={look.hair} roughness={0.7} />
-        </mesh>
-      ))}
-
-      {/* Pipi merona */}
-      {[-0.068, 0.068].map((x) => (
-        <mesh
-          key={`blush-${x}`}
-          position={[x, -0.024, 0.104]}
-          scale={[1.3, 0.7, 0.25]}
-        >
-          <sphereGeometry args={[0.017, 12, 8]} />
-          <meshStandardMaterial
-            color="#fb7185"
-            transparent
-            opacity={isFemale ? 0.42 : 0.2}
-            roughness={0.9}
-          />
-        </mesh>
-      ))}
-
-      {/* Senyum */}
-      <mesh position={[0, -0.052, 0.112]}>
-        <boxGeometry args={[0.036, 0.007, 0.008]} />
-        <meshStandardMaterial
-          color={isFemale ? "#e11d48" : "#9f4a4a"}
-          roughness={0.5}
-        />
-      </mesh>
-
-      {/* Janggut rapi (untuk preset cowok tertentu) */}
-      {look.beard && (
-        <group>
-          <mesh position={[0, -0.075, 0.035]} scale={[0.9, 0.7, 0.9]}>
-            <sphereGeometry
-              args={[0.102, 18, 12, 0, Math.PI * 2, Math.PI * 0.56, Math.PI * 0.4]}
-            />
-            <meshStandardMaterial color={look.hair} roughness={0.85} />
-          </mesh>
-          <mesh position={[0, -0.04, 0.113]}>
-            <boxGeometry args={[0.04, 0.007, 0.008]} />
-            <meshStandardMaterial color={look.hair} roughness={0.85} />
-          </mesh>
-        </group>
-      )}
-
-      {/* Kacamata */}
-      {look.glasses && (
-        <group>
-          {[-0.044, 0.044].map((x) => (
-            <mesh key={`lens-${x}`} position={[x, 0.012, eyeZ + 0.015]}>
-              <torusGeometry args={[0.026, 0.0035, 8, 20]} />
-              <meshStandardMaterial
-                color="#1e293b"
-                roughness={0.25}
-                metalness={0.7}
-              />
-            </mesh>
-          ))}
-          <mesh position={[0, 0.014, eyeZ + 0.015]}>
-            <boxGeometry args={[0.022, 0.004, 0.004]} />
-            <meshStandardMaterial color="#1e293b" metalness={0.7} />
-          </mesh>
-        </group>
-      )}
-    </group>
-  );
-}
-
-// ---------------------------------------------------------------
-// Komponen utama Avatar3D
-// ---------------------------------------------------------------
-const AVATAR_SCALE = 0.84;
+  AVATAR_SCALE,
+  HEAD_R,
+  HEAD_SCALE,
+  ROLE_ACCENT,
+  lerpAngle,
+} from "@/components/avatar/constants";
+import type { Avatar3DProps } from "@/components/avatar/types";
 
 export function Avatar3D({
   userId,
@@ -470,7 +113,10 @@ export function Avatar3D({
       const sitBob = -0.21 + Math.sin(t * 2.0) * 0.004;
 
       // Tekuk paha ke depan 90° & tekuk lutut ke bawah 90° agar duduk natural di kursi
-      const poseLimb = (ref: RefObject<THREE.Group | null>, targetX: number) => {
+      const poseLimb = (
+        ref: RefObject<THREE.Group | null>,
+        targetX: number,
+      ) => {
         if (ref.current) {
           ref.current.rotation.x = THREE.MathUtils.lerp(
             ref.current.rotation.x,
@@ -566,11 +212,15 @@ export function Avatar3D({
 
   const shirtMat = <meshStandardMaterial color={shirtColor} roughness={0.55} />;
   const innerMat = <meshStandardMaterial color={look.inner} roughness={0.48} />;
-  const collarMat = <meshStandardMaterial color={look.collar} roughness={0.45} />;
+  const collarMat = (
+    <meshStandardMaterial color={look.collar} roughness={0.45} />
+  );
   const pantsMat = <meshStandardMaterial color={look.pants} roughness={0.68} />;
   const skinMat = <meshStandardMaterial color={look.skin} roughness={0.48} />;
   const shoeMat = <meshStandardMaterial color={look.shoe} roughness={0.42} />;
-  const soleMat = <meshStandardMaterial color={look.shoeSole} roughness={0.45} />;
+  const soleMat = (
+    <meshStandardMaterial color={look.shoeSole} roughness={0.45} />
+  );
   const statusMeta = getStatusMeta(status);
 
   const shoulderX = isFemale ? 0.185 : 0.215;
@@ -685,12 +335,18 @@ export function Avatar3D({
 
         {/* Sabuk & gesper metalik */}
         <mesh position={[0, 0.92, 0]} scale={[1.16, 1, 0.8]}>
-          <cylinderGeometry args={[waistR + 0.004, waistR + 0.004, 0.028, 20]} />
+          <cylinderGeometry
+            args={[waistR + 0.004, waistR + 0.004, 0.028, 20]}
+          />
           <meshStandardMaterial color="#0f172a" roughness={0.4} />
         </mesh>
         <mesh position={[0, 0.92, isFemale ? 0.095 : 0.114]}>
           <boxGeometry args={[0.034, 0.028, 0.012]} />
-          <meshStandardMaterial color="#cbd5e1" metalness={0.85} roughness={0.2} />
+          <meshStandardMaterial
+            color="#cbd5e1"
+            metalness={0.85}
+            roughness={0.2}
+          />
         </mesh>
 
         {/* ---------------- TORSO & OUTFIT ---------------- */}
@@ -718,7 +374,11 @@ export function Avatar3D({
         {/* Kerah / Hoodie */}
         {look.outfit === "hoodie" ? (
           <>
-            <mesh position={[0, 1.36, -0.045]} rotation={[0.45, 0, 0]} castShadow>
+            <mesh
+              position={[0, 1.36, -0.045]}
+              rotation={[0.45, 0, 0]}
+              castShadow
+            >
               <torusGeometry args={[0.09, 0.034, 12, 20]} />
               {shirtMat}
             </mesh>
@@ -782,7 +442,11 @@ export function Avatar3D({
                 <sphereGeometry args={[isFemale ? 0.035 : 0.041, 10, 8]} />
                 {shirtMat}
               </mesh>
-              <mesh position={[0, -0.34, 0.012]} rotation={[-0.08, 0, 0]} castShadow>
+              <mesh
+                position={[0, -0.34, 0.012]}
+                rotation={[-0.08, 0, 0]}
+                castShadow
+              >
                 <cylinderGeometry
                   args={[
                     isFemale ? 0.035 : 0.041,

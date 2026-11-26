@@ -1,6 +1,10 @@
 import type { Box } from "@/config/buildings";
 
-/** Kotak tabrakan untuk prop kota. hx/hz = setengah ukuran dasar objek (meter) */
+/**
+ * Kotak tabrakan untuk prop kota. hx/hz = setengah ukuran dasar objek di permukaan tanah (meter).
+ * Catatan: isBlocked() di OfficeScene otomatis menambahkan PLAYER_RADIUS (0.45 m) di tiap sisi,
+ * sehingga hx/hz cukup memakai ukuran fisik inti objek agar tidak terasa nyenggol dari jauh.
+ */
 const box = (x: number, z: number, hx: number, hz: number): Box => ({
   minX: x - hx,
   maxX: x + hx,
@@ -8,21 +12,21 @@ const box = (x: number, z: number, hx: number, hz: number): Box => ({
   maxZ: z + hz,
 });
 
-/** Pohon: hanya batang yang bisa ditabrak, radius sebanding skala */
+/** Pohon: hanya batang inti (radius ~0,1 m) di permukaan tanah */
 const tree = (x: number, z: number, scale: number) =>
-  box(x, z, 0.35 * scale, 0.35 * scale);
+  box(x, z, 0.1 * scale, 0.1 * scale);
 
-/** Bangku panjang 2,2 m, lebar 0,8 m. Rotasi ±90° membuatnya menyamping */
+/** Bangku taman (lebar 1,64 m, dalam 0,46 m). Rotasi ±90° membuatnya menyamping */
 const bench = (x: number, z: number, rotY: number) => {
   const sideways = Math.abs(Math.sin(rotY)) > 0.5;
-  return sideways ? box(x, z, 0.4, 1.1) : box(x, z, 1.1, 0.4);
+  return sideways ? box(x, z, 0.18, 0.72) : box(x, z, 0.72, 0.18);
 };
 
-/** Tiang lampu / tiang tipis */
-const pole = (x: number, z: number) => box(x, z, 0.15, 0.15);
+/** Tiang lampu / rambu / bollard tipis (silinder r≈0,05 m) */
+const pole = (x: number, z: number) => box(x, z, 0.05, 0.05);
 
 /** Pot tanaman 1,4 x 0,7 m */
-const planter = (x: number, z: number) => box(x, z, 0.7, 0.35);
+const planter = (x: number, z: number) => box(x, z, 0.6, 0.25);
 
 /** Pot/tanaman di sepanjang deretan */
 const planters = (xs: number[], z: number) => xs.map((x) => planter(x, z));
@@ -72,48 +76,46 @@ export const SOLID_PROP_BOXES: Box[] = [
   pole(1.9, 38),
   pole(3.6, 13.5), // papan petunjuk
 
-  // ===== Lampu lalu lintas (tiang + kepala lampu) =====
-  // rotY 0: kepala di -Z dari tiang; rotY π: kepala di +Z
+  // ===== Lampu lalu lintas (hanya tiang di permukaan tanah; kepala lampu menggantung di atas) =====
   pole(-3.8, 26.2),
-  box(-3.8, 26.2 - 1.55, 0.25, 0.25),
   pole(3.8, 17.8),
-  box(3.8, 17.8 + 1.55, 0.25, 0.25),
   pole(-3.8, -25.8),
-  box(-3.8, -25.8 - 1.55, 0.25, 0.25),
   pole(3.8, -34.2),
-  box(3.8, -34.2 + 1.55, 0.25, 0.25),
 
   // ===== Penyeberangan (tiang) =====
   pole(-2.8, 17.8),
   pole(2.8, 26.2),
 
   // ===== Mobil parkir (panjang sejajar Z) =====
-  box(14, 30, 0.95, 2.0),
-  box(22, 30, 0.95, 2.0),
-  box(28, 30, 0.95, 2.0),
+  box(14, 30, 0.85, 1.85),
+  box(22, 30, 0.85, 1.85),
+  box(28, 30, 0.85, 1.85),
 
-  // ===== Meja kafe bermayung =====
-  box(35.5, 12.2, 0.45, 0.45),
-  box(-8.2, 34.5, 0.45, 0.45),
+  // ===== Meja kafe bermayung (hanya tiang & meja, kursi tetap rapi) =====
+  box(35.5, 12.2, 0.3, 0.3),
+  box(-8.2, 34.5, 0.3, 0.3),
 
-  // ===== Air mancur taman (tepi bundar didekati persegi) =====
-  box(-16, 32.5, 1.9, 1.9),
+  // ===== Air mancur taman (tepi kolam r≈1,5 m) =====
+  box(-16, 32.5, 1.5, 1.5),
 
-  // ===== Halte bus (dua halte) =====
-  box(-22, 17.2, 2.2, 0.9),
-  box(16, 17.2, 2.2, 0.9),
+  // ===== Halte bus (dua halte; hanya dinding belakang tipis) =====
+  box(-22, 17.2, 2.0, 0.5),
+  box(16, 17.2, 2.0, 0.5),
 
-  // ===== Parkir sepeda (setelah dipindah ke x 19,5) =====
-  box(-19.5, 13.5, 1.1, 0.4),
-  box(19.5, 13.5, 1.1, 0.4),
+  // ===== Parkir sepeda (rak besi tipis) =====
+  box(-19.5, 13.5, 1.4, 0.25),
+  box(14.5, 13.5, 1.4, 0.25),
 
-  // ===== Menara jam & hologram & papan reklame =====
-  box(-32, 32.5, 1.2, 1.2),
-  box(4.6, 31, 0.8, 0.8),
-  box(20.5, 15.8, 1.6, 0.3),
+  // ===== Menara jam, hologram kota, & tiang papan reklame =====
+  box(-32, 32.5, 1.1, 1.1),
+  box(4.6, 31, 1.0, 1.0),
+  box(20.5, 15.8, 0.08, 0.08),
 
-  // ===== Perlengkapan jalan (StreetProps) =====
-  box(-15, 13.6, 0.5, 0.5),
-  box(8, 13.6, 0.5, 0.5),
-  box(31, 13.6, 0.5, 0.5),
+  // ===== Perlengkapan jalan (tempat sampah & hidran) =====
+  box(-15, 13.6, 0.18, 0.18),
+  box(-14.3, 13.6, 0.12, 0.12),
+  box(8, 13.6, 0.18, 0.18),
+  box(8.7, 13.6, 0.12, 0.12),
+  box(31, 13.6, 0.18, 0.18),
+  box(31.7, 13.6, 0.12, 0.12),
 ];

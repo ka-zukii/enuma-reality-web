@@ -51,12 +51,14 @@ export const DEFAULT_TUNING: WalkTuning = { speed: 7 };
 
 /** Kecepatan asli animasi, dipakai sebagai acuan timeScale */
 const BASE_SPEED = 7;
-/** Durasi transisi antar pose (detik) */
-const FADE = 0.25;
+/** Durasi transisi idle→walk (detik): lebih cepat, langsung responsif */
+const FADE_TO_WALK = 0.18;
+/** Durasi transisi walk→idle (detik): lebih lambat, ada "deceleration" feel */
+const FADE_TO_IDLE = 0.35;
+/** Durasi transisi ke/dari duduk */
+const FADE_SIT = 0.45;
 /** 1 = putar animasi maju normal */
 const WALK_DIR = 1;
-/** Seberapa jauh lengan melebar ke samping saat diam (0 = lurus ke bawah) */
-const ARM_OUT = 0.15;
 
 /** Tinggi karakter yang diinginkan (satuan lokal Avatar3D, sebelum AVATAR_SCALE). Kepala lama ≈ 1.72 */
 export const TARGET_HEIGHT = 1.72;
@@ -184,9 +186,9 @@ export function RiggedCharacter({
       const dir = p1.clone().sub(p0).normalize();
 
       const outward = Math.sign(dir.x) || 1;
-      const target = new THREE.Vector3(outward * ARM_OUT, -1, 0).normalize();
-
-      const dq = new THREE.Quaternion().setFromUnitVectors(dir, target);
+      // Sedikit keluar (0.07) agar lengan lurus ke bawah tanpa menembus pinggul
+      const armTarget = new THREE.Vector3(outward * 0.07, -1, 0).normalize();
+      const dq = new THREE.Quaternion().setFromUnitVectors(dir, armTarget);
       const pw = new THREE.Quaternion();
       arm.parent.getWorldQuaternion(pw);
       const restLocal = arm.quaternion.clone();
@@ -262,8 +264,13 @@ export function RiggedCharacter({
       root.updateMatrixWorld(true);
     }
 
-    // ---- Clip statis (idle / sit) dari override quaternion ----
-    const makeStaticClip = (name: string, overrides: Map<string, THREE.Quaternion>) => {
+    // ---- Clip idle (dengan napas halus) & sit dari override quaternion ----
+    const makeStaticClip = (
+      name: string,
+      overrides: Map<string, THREE.Quaternion>,
+      breathing = false,
+    ) => {
+      const dur = breathing ? 4.0 : 1;
       const out: THREE.KeyframeTrack[] = [];
       for (const t of tracks) {
         const dot = t.name.lastIndexOf(".");
@@ -274,21 +281,44 @@ export function RiggedCharacter({
 
         if (prop === "quaternion") {
           const q = overrides.get(node) ?? bone.quaternion;
-          out.push(new THREE.QuaternionKeyframeTrack(t.name, [0, 1], [...q.toArray(), ...q.toArray()]));
+          const isSpine = node.endsWith("Spine") || node.endsWith("Spine1");
+          const isNeck = node.endsWith("Neck");
+
+          if (breathing && (isSpine || isNeck)) {
+            const steps = 8;
+            const times: number[] = [];
+            const values: number[] = [];
+            const amp = isSpine ? 0.014 : -0.01;
+            const dq = new THREE.Quaternion();
+            const euler = new THREE.Euler();
+            const qFrame = new THREE.Quaternion();
+            for (let i = 0; i <= steps; i++) {
+              const time = (i / steps) * dur;
+              const phase = (i / steps) * Math.PI * 2;
+              euler.set(Math.sin(phase) * amp, 0, 0);
+              dq.setFromEuler(euler);
+              qFrame.copy(q).multiply(dq);
+              times.push(time);
+              values.push(qFrame.x, qFrame.y, qFrame.z, qFrame.w);
+            }
+            out.push(new THREE.QuaternionKeyframeTrack(t.name, times, values));
+          } else {
+            out.push(new THREE.QuaternionKeyframeTrack(t.name, [0, dur], [...q.toArray(), ...q.toArray()]));
+          }
         } else if (prop === "position") {
           const p = bone.position;
-          out.push(new THREE.VectorKeyframeTrack(t.name, [0, 1], [...p.toArray(), ...p.toArray()]));
+          out.push(new THREE.VectorKeyframeTrack(t.name, [0, dur], [...p.toArray(), ...p.toArray()]));
         } else if (prop === "scale") {
-          out.push(new THREE.VectorKeyframeTrack(t.name, [0, 1], [1, 1, 1, 1, 1, 1]));
+          out.push(new THREE.VectorKeyframeTrack(t.name, [0, dur], [1, 1, 1, 1, 1, 1]));
         }
       }
-      return new THREE.AnimationClip(name, 1, out);
+      return new THREE.AnimationClip(name, dur, out);
     };
 
     const mixer = new THREE.AnimationMixer(root);
     const actions: Record<RigAnimation, THREE.AnimationAction> = {
       walk: mixer.clipAction(walkClip),
-      idle: mixer.clipAction(makeStaticClip("idle", idleOverride)),
+      idle: mixer.clipAction(makeStaticClip("idle", idleOverride, true)),
       sit: mixer.clipAction(makeStaticClip("sit", sitOverride)),
     };
     actions.walk.setLoop(THREE.LoopRepeat, Infinity);
@@ -318,7 +348,7 @@ export function RiggedCharacter({
   const stateRef = useRef<RigAnimation>("idle");
 
   useFrame((_, delta) => {
-    const dt = Math.min(delta, 1 / 30);
+    const dt = Math.min(delta, 1 / 20);
     const want: RigAnimation = animRef
       ? animRef.current
       : (walkRef ? walkRef.current : walking)
@@ -329,8 +359,14 @@ export function RiggedCharacter({
       const prev = actions[stateRef.current];
       const next = actions[want];
       stateRef.current = want;
+
+      // Pilih durasi fade berdasarkan transisi
+      let fadeDur = FADE_TO_IDLE;
+      if (want === "walk") fadeDur = FADE_TO_WALK;
+      else if (want === "sit" || prev.getClip().name === "sit") fadeDur = FADE_SIT;
+
       next.reset().setEffectiveWeight(1).play();
-      prev.crossFadeTo(next, FADE, false);
+      prev.crossFadeTo(next, fadeDur, false);
     }
 
     actions.walk.timeScale = (WALK_DIR * tuning.speed) / BASE_SPEED;
@@ -340,7 +376,7 @@ export function RiggedCharacter({
     const g = offsetRef.current;
     if (g) {
       const sitting = want === "sit";
-      const a = 1 - Math.exp(-14 * dt);
+      const a = 1 - Math.exp(-10 * dt);
       g.position.y += ((sitting ? -sitDrop : 0) - g.position.y) * a;
       g.position.z += ((sitting ? SIT_Z : 0) - g.position.z) * a;
     }

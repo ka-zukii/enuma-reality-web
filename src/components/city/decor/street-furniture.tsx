@@ -1,6 +1,8 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
+import { Text } from "@react-three/drei";
 import * as THREE from "three";
+import { getNpcSignal } from "@/lib/npcRuntime";
 
 export const FLOWER_COLORS = [
   "#f43f5e",
@@ -54,7 +56,7 @@ export function PlanterBox({
   );
 }
 
-/** Air mancur taman dengan animasi semburan air ringan */
+/** Air mancur taman bertingkat dengan pancuran, lampu bawah air & riak air */
 export function Fountain({
   position,
   isNight = false,
@@ -63,67 +65,197 @@ export function Fountain({
   isNight?: boolean;
 }) {
   const jetRef = useRef<THREE.Mesh>(null);
-  const ringRef = useRef<THREE.Mesh>(null);
+  const ring1Ref = useRef<THREE.Mesh>(null);
+  const ring2Ref = useRef<THREE.Mesh>(null);
+  const dropRefs = useRef<(THREE.Mesh | null)[]>([]);
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     if (jetRef.current) {
-      jetRef.current.scale.y = 0.85 + Math.sin(t * 4.5) * 0.18;
+      jetRef.current.scale.y = 0.88 + Math.sin(t * 4.5) * 0.16;
     }
-    if (ringRef.current) {
-      const s = 0.8 + ((t * 0.6) % 1) * 0.5;
-      ringRef.current.scale.set(s, 1, s);
+    if (ring1Ref.current) {
+      const p1 = (t * 0.5) % 1;
+      const s1 = 0.5 + p1 * 1.1;
+      ring1Ref.current.scale.set(s1, s1, 1);
+      (ring1Ref.current.material as THREE.MeshBasicMaterial).opacity = (1 - p1) * 0.55;
+    }
+    if (ring2Ref.current) {
+      const p2 = (t * 0.5 + 0.5) % 1;
+      const s2 = 0.5 + p2 * 1.1;
+      ring2Ref.current.scale.set(s2, s2, 1);
+      (ring2Ref.current.material as THREE.MeshBasicMaterial).opacity = (1 - p2) * 0.55;
+    }
+    for (let i = 0; i < dropRefs.current.length; i++) {
+      const d = dropRefs.current[i];
+      if (!d) continue;
+      const phase = ((t * 1.6 + i * 0.25) % 1);
+      d.position.y = 1.38 - phase * phase * 0.96;
+      const sc = 1 - phase * 0.35;
+      d.scale.setScalar(sc);
     }
   });
 
   return (
     <group position={position}>
-      {/* Tepi kolam bundar */}
-      <mesh position={[0, 0.2, 0]} receiveShadow>
-        <cylinderGeometry args={[2.3, 2.45, 0.4, 24]} />
-        <meshStandardMaterial color="#e2e8f0" roughness={0.7} />
+      {/* Undakan dasar batu luar */}
+      <mesh position={[0, 0.04, 0]} receiveShadow>
+        <cylinderGeometry args={[2.52, 2.58, 0.08, 32]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.75} />
       </mesh>
-      {/* Air kolam */}
-      <mesh position={[0, 0.37, 0]}>
-        <cylinderGeometry args={[2.05, 2.05, 0.08, 24]} />
+      {/* Dinding luar kolam */}
+      <mesh position={[0, 0.24, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[2.32, 2.42, 0.36, 32]} />
+        <meshStandardMaterial color="#e2e8f0" roughness={0.65} />
+      </mesh>
+      {/* Bibir kolam melingkar membulat */}
+      <mesh position={[0, 0.43, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <torusGeometry args={[2.24, 0.12, 12, 36]} />
+        <meshStandardMaterial color="#f1f5f9" roughness={0.55} />
+      </mesh>
+      {/* 8 ornamen pilar kecil di bibir kolam */}
+      {Array.from({ length: 8 }, (_, i) => {
+        const a = (i / 8) * Math.PI * 2;
+        return (
+          <mesh
+            key={`rim-${i}`}
+            position={[Math.cos(a) * 2.24, 0.47, Math.sin(a) * 2.24]}
+            castShadow
+          >
+            <cylinderGeometry args={[0.1, 0.12, 0.14, 10]} />
+            <meshStandardMaterial color="#cbd5e1" roughness={0.6} />
+          </mesh>
+        );
+      })}
+
+      {/* Dasar kolam biru keramik */}
+      <mesh position={[0, 0.31, 0]}>
+        <cylinderGeometry args={[2.12, 2.12, 0.04, 32]} />
+        <meshStandardMaterial color="#0369a1" roughness={0.5} />
+      </mesh>
+      {/* Koin & batu hias di dasar kolam */}
+      {[
+        [0.9, 0.6],
+        [-1.1, 0.4],
+        [0.4, -1.2],
+        [-0.7, -0.9],
+      ].map(([cx, cz], i) => (
+        <mesh key={`coin-${i}`} position={[cx, 0.335, cz]}>
+          <cylinderGeometry args={[0.04, 0.04, 0.01, 8]} />
+          <meshStandardMaterial color="#fbbf24" metalness={0.8} roughness={0.2} />
+        </mesh>
+      ))}
+
+      {/* Permukaan air kolam */}
+      <mesh position={[0, 0.38, 0]}>
+        <cylinderGeometry args={[2.12, 2.12, 0.06, 32]} />
         <meshStandardMaterial
           color="#38bdf8"
           emissive={isNight ? "#0284c7" : "#000000"}
-          emissiveIntensity={isNight ? 0.9 : 0}
-          roughness={0.15}
-          metalness={0.2}
-          transparent
-          opacity={0.85}
-        />
-      </mesh>
-      {/* Riak air */}
-      <mesh
-        ref={ringRef}
-        position={[0, 0.415, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-      >
-        <ringGeometry args={[0.8, 0.92, 24]} />
-        <meshBasicMaterial color="#bae6fd" transparent opacity={0.6} />
-      </mesh>
-      {/* Pilar tengah */}
-      <mesh position={[0, 0.85, 0]} castShadow>
-        <cylinderGeometry args={[0.3, 0.42, 0.9, 14]} />
-        <meshStandardMaterial color="#cbd5e1" roughness={0.6} />
-      </mesh>
-      <mesh position={[0, 1.3, 0]}>
-        <cylinderGeometry args={[0.85, 0.35, 0.22, 18]} />
-        <meshStandardMaterial color="#f1f5f9" roughness={0.6} />
-      </mesh>
-      {/* Semburan air */}
-      <mesh ref={jetRef} position={[0, 1.9, 0]}>
-        <cylinderGeometry args={[0.07, 0.26, 0.95, 12]} />
-        <meshStandardMaterial
-          color="#e0f2fe"
+          emissiveIntensity={isNight ? 0.8 : 0}
+          roughness={0.12}
+          metalness={0.25}
           transparent
           opacity={0.78}
-          roughness={0.1}
         />
       </mesh>
+
+      {/* Dua riak air konsentris */}
+      <mesh ref={ring1Ref} position={[0, 0.415, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.85, 0.94, 32]} />
+        <meshBasicMaterial color="#e0f2fe" transparent opacity={0.5} />
+      </mesh>
+      <mesh ref={ring2Ref} position={[0, 0.416, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.85, 0.94, 32]} />
+        <meshBasicMaterial color="#bae6fd" transparent opacity={0.5} />
+      </mesh>
+
+      {/* 6 lampu sorot bawah air */}
+      {Array.from({ length: 6 }, (_, i) => {
+        const a = (i / 6) * Math.PI * 2;
+        return (
+          <mesh key={`uw-${i}`} position={[Math.cos(a) * 1.15, 0.35, Math.sin(a) * 1.15]}>
+            <cylinderGeometry args={[0.06, 0.07, 0.06, 10]} />
+            <meshStandardMaterial
+              color={isNight ? "#bae6fd" : "#475569"}
+              emissive={isNight ? "#38bdf8" : "#000000"}
+              emissiveIntensity={isNight ? 1.8 : 0}
+            />
+          </mesh>
+        );
+      })}
+
+      {/* Alas pilar tengah */}
+      <mesh position={[0, 0.48, 0]} castShadow>
+        <cylinderGeometry args={[0.52, 0.62, 0.18, 18]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.6} />
+      </mesh>
+      {/* Pilar tingkat 1 */}
+      <mesh position={[0, 0.88, 0]} castShadow>
+        <cylinderGeometry args={[0.28, 0.38, 0.7, 16]} />
+        <meshStandardMaterial color="#e2e8f0" roughness={0.55} />
+      </mesh>
+      {/* Mangkuk besar tingkat 1 + air di dalamnya */}
+      <mesh position={[0, 1.28, 0]} castShadow>
+        <cylinderGeometry args={[0.96, 0.34, 0.22, 24]} />
+        <meshStandardMaterial color="#f1f5f9" roughness={0.55} />
+      </mesh>
+      <mesh position={[0, 1.39, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.95, 0.045, 10, 28]} />
+        <meshStandardMaterial color="#e2e8f0" roughness={0.5} />
+      </mesh>
+      <mesh position={[0, 1.37, 0]}>
+        <cylinderGeometry args={[0.88, 0.88, 0.04, 24]} />
+        <meshStandardMaterial color="#38bdf8" transparent opacity={0.85} roughness={0.1} />
+      </mesh>
+
+      {/* Pilar tingkat 2 + mangkuk kecil */}
+      <mesh position={[0, 1.64, 0]} castShadow>
+        <cylinderGeometry args={[0.16, 0.22, 0.54, 14]} />
+        <meshStandardMaterial color="#e2e8f0" roughness={0.55} />
+      </mesh>
+      <mesh position={[0, 1.94, 0]} castShadow>
+        <cylinderGeometry args={[0.52, 0.2, 0.16, 20]} />
+        <meshStandardMaterial color="#f8fafc" roughness={0.5} />
+      </mesh>
+      <mesh position={[0, 2.02, 0]}>
+        <cylinderGeometry args={[0.46, 0.46, 0.03, 20]} />
+        <meshStandardMaterial color="#38bdf8" transparent opacity={0.85} roughness={0.1} />
+      </mesh>
+
+      {/* Nozzle puncak kuningan */}
+      <mesh position={[0, 2.12, 0]} castShadow>
+        <cylinderGeometry args={[0.05, 0.1, 0.2, 12]} />
+        <meshStandardMaterial color="#d97706" metalness={0.7} roughness={0.25} />
+      </mesh>
+
+      {/* Semburan air puncak */}
+      <mesh ref={jetRef} position={[0, 2.58, 0]}>
+        <cylinderGeometry args={[0.04, 0.18, 0.82, 12]} />
+        <meshStandardMaterial color="#e0f2fe" transparent opacity={0.78} roughness={0.1} />
+      </mesh>
+
+      {/* 8 pancuran air jatuh dari mangkuk tingkat 1 ke kolam */}
+      {Array.from({ length: 8 }, (_, i) => {
+        const a = (i / 8) * Math.PI * 2;
+        return (
+          <group key={`spill-${i}`} position={[Math.cos(a) * 0.96, 0, Math.sin(a) * 0.96]}>
+            <mesh position={[Math.cos(a) * 0.12, 0.9, Math.sin(a) * 0.12]}>
+              <cylinderGeometry args={[0.025, 0.05, 0.96, 8]} />
+              <meshStandardMaterial color="#bae6fd" transparent opacity={0.62} roughness={0.1} />
+            </mesh>
+            <mesh
+              ref={(el) => {
+                dropRefs.current[i] = el;
+              }}
+              position={[Math.cos(a) * 0.14, 1.35, Math.sin(a) * 0.14]}
+            >
+              <sphereGeometry args={[0.045, 8, 8]} />
+              <meshBasicMaterial color="#e0f2fe" transparent opacity={0.8} />
+            </mesh>
+          </group>
+        );
+      })}
     </group>
   );
 }
@@ -363,7 +495,7 @@ export function CafeTable({
   );
 }
 
-/** Lampu penyeberangan di dekat zebra cross */
+/** Lampu penyeberangan di dekat zebra cross (sinkron dengan sinyal lalu lintas) */
 export function CrossingSignal({
   position,
   rotationY = 0,
@@ -371,58 +503,167 @@ export function CrossingSignal({
   position: [number, number, number];
   rotationY?: number;
 }) {
+  const redRef = useRef<THREE.MeshStandardMaterial>(null);
+  const greenRef = useRef<THREE.MeshStandardMaterial>(null);
+
+  useFrame(() => {
+    const carSig = getNpcSignal();
+    const walkGreen = carSig === "red";
+    if (redRef.current) {
+      redRef.current.emissiveIntensity = walkGreen ? 0.05 : 2.6;
+    }
+    if (greenRef.current) {
+      greenRef.current.emissiveIntensity = walkGreen ? 2.8 : 0.05;
+    }
+  });
+
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
-      <mesh position={[0, 1.35, 0]}>
+      <mesh position={[0, 1.35, 0]} castShadow>
         <cylinderGeometry args={[0.045, 0.055, 2.7, 10]} />
         <meshStandardMaterial color="#1e293b" metalness={0.6} roughness={0.4} />
       </mesh>
-      <mesh position={[0, 2.45, 0]}>
-        <boxGeometry args={[0.24, 0.56, 0.2]} />
+      <mesh position={[0, 2.45, 0]} castShadow>
+        <boxGeometry args={[0.26, 0.58, 0.2]} />
         <meshStandardMaterial color="#0f172a" roughness={0.5} />
+      </mesh>
+      {/* Tudung lampu merah & hijau */}
+      <mesh position={[0, 2.65, 0.13]} rotation={[0.15, 0, 0]}>
+        <boxGeometry args={[0.18, 0.02, 0.08]} />
+        <meshStandardMaterial color="#0f172a" />
+      </mesh>
+      <mesh position={[0, 2.41, 0.13]} rotation={[0.15, 0, 0]}>
+        <boxGeometry args={[0.18, 0.02, 0.08]} />
+        <meshStandardMaterial color="#0f172a" />
       </mesh>
       <mesh position={[0, 2.57, 0.105]}>
         <circleGeometry args={[0.065, 12]} />
         <meshStandardMaterial
+          ref={redRef}
           color="#ef4444"
           emissive="#ef4444"
-          emissiveIntensity={1.2}
+          emissiveIntensity={2.6}
         />
       </mesh>
       <mesh position={[0, 2.33, 0.105]}>
         <circleGeometry args={[0.065, 12]} />
         <meshStandardMaterial
+          ref={greenRef}
           color="#22c55e"
           emissive="#22c55e"
-          emissiveIntensity={1.4}
+          emissiveIntensity={0.05}
         />
       </mesh>
     </group>
   );
 }
 
-/** Papan petunjuk arah kota */
+/** Papan petunjuk arah kota dengan ujung panah & teks dua sisi */
 export function CitySignpost({
   position,
 }: {
   position: [number, number, number];
 }) {
-  const signs: { y: number; rotY: number; color: string }[] = [
-    { y: 2.35, rotY: 0.2, color: "#2563eb" },
-    { y: 2.08, rotY: -0.5, color: "#059669" },
-    { y: 1.81, rotY: 1.4, color: "#d97706" },
+  const signs: {
+    y: number;
+    rotY: number;
+    dir: 1 | -1;
+    color: string;
+    label: string;
+    sub: string;
+  }[] = [
+    { y: 2.42, rotY: 0.08, dir: 1, color: "#0284c7", label: "ENUMA HQ · CAFE", sub: "120 m" },
+    { y: 2.15, rotY: -0.08, dir: -1, color: "#2563eb", label: "INDOMART · WARUNG", sub: "90 m" },
+    { y: 1.88, rotY: -Math.PI / 2 + 0.15, dir: 1, color: "#059669", label: "STASIUN & PLAZA", sub: "150 m" },
+    { y: 1.61, rotY: Math.PI / 2 - 0.35, dir: 1, color: "#d97706", label: "TAMAN AIR MANCUR", sub: "110 m" },
   ];
+
   return (
     <group position={position}>
-      <mesh position={[0, 1.3, 0]}>
-        <cylinderGeometry args={[0.05, 0.06, 2.6, 10]} />
-        <meshStandardMaterial color="#334155" metalness={0.6} />
+      {/* Alas dasar & flens baut */}
+      <mesh position={[0, 0.05, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.14, 0.17, 0.1, 12]} />
+        <meshStandardMaterial color="#1e293b" metalness={0.6} roughness={0.4} />
       </mesh>
+      <mesh position={[0, 0.15, 0]} castShadow>
+        <cylinderGeometry args={[0.08, 0.11, 0.12, 12]} />
+        <meshStandardMaterial color="#334155" metalness={0.6} roughness={0.35} />
+      </mesh>
+
+      {/* Tiang utama */}
+      <mesh position={[0, 1.38, 0]} castShadow>
+        <cylinderGeometry args={[0.048, 0.058, 2.65, 12]} />
+        <meshStandardMaterial color="#1e293b" metalness={0.65} roughness={0.35} />
+      </mesh>
+
+      {/* Mahkota finial puncak tiang */}
+      <mesh position={[0, 2.74, 0]} castShadow>
+        <sphereGeometry args={[0.075, 12, 10]} />
+        <meshStandardMaterial color="#f59e0b" metalness={0.7} roughness={0.25} />
+      </mesh>
+
       {signs.map((s, idx) => (
-        <mesh key={idx} position={[0, s.y, 0]} rotation={[0, s.rotY, 0]}>
-          <boxGeometry args={[0.95, 0.18, 0.05]} />
-          <meshStandardMaterial color={s.color} roughness={0.4} />
-        </mesh>
+        <group key={idx} position={[0, s.y, 0]} rotation={[0, s.rotY, 0]}>
+          {/* Cincin penyangga di tiang */}
+          <mesh>
+            <cylinderGeometry args={[0.068, 0.068, 0.08, 12]} />
+            <meshStandardMaterial color="#475569" metalness={0.6} />
+          </mesh>
+
+          {/* Papan bergeser ke arah tujuan (dir: +1 kanan / -1 kiri) */}
+          <group position={[s.dir * 0.48, 0, 0]}>
+            {/* Badan papan utama */}
+            <mesh castShadow>
+              <boxGeometry args={[0.96, 0.21, 0.045]} />
+              <meshStandardMaterial color={s.color} roughness={0.38} />
+            </mesh>
+            {/* Bingkai tipis atas & bawah */}
+            {[-0.105, 0.105].map((by) => (
+              <mesh key={by} position={[0, by, 0]}>
+                <boxGeometry args={[0.96, 0.015, 0.052]} />
+                <meshStandardMaterial color="#f8fafc" roughness={0.3} />
+              </mesh>
+            ))}
+            {/* Ujung panah segitiga */}
+            <mesh
+              position={[s.dir * 0.54, 0, 0]}
+              rotation={[0, 0, s.dir * -Math.PI / 2]}
+              scale={[1, 1, 0.35]}
+              castShadow
+            >
+              <coneGeometry args={[0.115, 0.14, 4]} />
+              <meshStandardMaterial color={s.color} roughness={0.38} />
+            </mesh>
+
+            {/* Teks depan & belakang papan */}
+            {[0.026, -0.026].map((tz, sideIdx) => (
+              <group
+                key={sideIdx}
+                position={[0, 0, tz]}
+                rotation={[0, sideIdx === 1 ? Math.PI : 0, 0]}
+              >
+                <Text
+                  position={[0, 0.028, 0]}
+                  fontSize={0.068}
+                  color="#ffffff"
+                  anchorX="center"
+                  anchorY="middle"
+                >
+                  {s.label}
+                </Text>
+                <Text
+                  position={[0, -0.05, 0]}
+                  fontSize={0.046}
+                  color="#e2e8f0"
+                  anchorX="center"
+                  anchorY="middle"
+                >
+                  {s.sub}
+                </Text>
+              </group>
+            ))}
+          </group>
+        </group>
       ))}
     </group>
   );

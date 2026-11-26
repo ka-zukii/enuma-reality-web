@@ -56,7 +56,8 @@ export function Avatar3D({
       targetVec.current.set(...tick.position);
     }
 
-    const rotAlpha = 1 - Math.exp(-(isLocal ? 25 : 14) * delta);
+    // Rotasi: local lebih responsif, remote lebih halus (hindari snap)
+    const rotAlpha = 1 - Math.exp(-(isLocal ? 18 : 10) * delta);
 
     // Penumpang trem (pemain lain): posisi dunia dihitung dari kabin trem
     if (!isLocal && tick?.ride) {
@@ -64,7 +65,8 @@ export function Avatar3D({
       const [x, z] = riderWorldPos(tick.ride.rx, tick.ride.rz);
       groupRef.current.position.set(x, TRAM.floorY, z);
     } else {
-      const posAlpha = 1 - Math.exp(-(isLocal ? 35 : 14) * delta);
+      // Posisi: local lebih cepat snap (player sendiri), remote lebih halus
+      const posAlpha = 1 - Math.exp(-(isLocal ? 28 : 12) * delta);
       groupRef.current.position.lerp(targetVec.current, posAlpha);
     }
     if (tick) {

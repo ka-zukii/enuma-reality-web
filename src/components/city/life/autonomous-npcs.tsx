@@ -1,22 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { NpcFigure } from "@/components/NpcFigure";
-import { playerPos } from "@/lib/playerPosition";
-import { platformY } from "@/config/railway";
-import {
-  isTramStopped,
-  riderWorldPos,
-  stepTramView,
-  TRAM,
-} from "@/lib/tramRuntime";
-import { REDUCED_MOTION } from "@/components/city/life/shared";
-import { getTrafficSignal } from "@/components/city/life/traffic";
+import { createNpcPose, interactNpc, readNpcPose, useNpcTalk, type NpcPose } from "@/lib/npcRuntime";
+import { swingBiped } from "@/lib/npcLimbs";
 
 /* ============================================================
- * NPC OTONOM MULTI-AKTIVITAS (Duduk di Taman, Pinggir Kota, & Naik Trem)
+ * NPC OTONOM (jadwal di client hanya untuk dialog; posisi dari server)
  * ============================================================ */
+const pose: NpcPose = createNpcPose();
+
 type ActivityStep =
   | {
       kind: "sit";
@@ -270,226 +264,35 @@ function AutonomousNpc({ spec }: { spec: AutonomousSpec }) {
   const rightArmRef = useRef<THREE.Group>(null);
 
   const [sitting, setSitting] = useState(false);
-  const [talkLine, setTalkLine] = useState<string | null>(null);
-  const nearRef = useRef(false);
+  const id = spec.name.toLowerCase();
+  // Bubble = indeks langkah jadwal dari server; teks diambil dari jadwal lokal
+  const talk = useNpcTalk(id);
+  const talkLine = talk >= 0 ? spec.schedule[talk]?.line ?? null : null;
 
-  const st = useRef({
-    x: spec.start[0],
-    z: spec.start[1],
-    yaw: 0,
-    stepIdx: 0,
-    phase: "walk" as "walk" | "act" | "wait_tram" | "ride_tram",
-    timer: 0,
-    rideTimer: 0,
-    sittingState: false,
-  });
-
-  useEffect(() => {
-    if (!talkLine) return;
-    const t = window.setTimeout(() => setTalkLine(null), 4000);
-    return () => window.clearTimeout(t);
-  }, [talkLine]);
-
-  useFrame(({ clock }, rawDelta) => {
-    if (REDUCED_MOTION) return;
-    const delta = Math.min(rawDelta, 0.05);
-    const t = clock.elapsedTime;
+  useFrame(({ clock }) => {
     const g = groupRef.current;
-    if (!g) return;
-
-    const s = st.current;
-    const step = spec.schedule[s.stepIdx];
-
-    const dxP = playerPos.x - s.x;
-    const dzP = playerPos.z - s.z;
-    const isNear = Math.hypot(dxP, dzP) < 2.5;
-    if (isNear && !nearRef.current) {
-      setTalkLine(step.line);
-    }
-    nearRef.current = isNear;
-
-    const setSitPose = (val: boolean) => {
-      if (s.sittingState !== val) {
-        s.sittingState = val;
-        setSitting(val);
-      }
-    };
-
-    // Jika sedang naik trem
-    if (s.phase === "ride_tram") {
-      setSitPose(false);
-      if (step.kind === "tram") {
-        stepTramView(t);
-        const [tx, tz] = riderWorldPos(step.rx, step.rz);
-        s.x = tx;
-        s.z = tz;
-        s.rideTimer += delta;
-        g.position.set(tx, TRAM.floorY, tz);
-        g.rotation.y = Math.PI / 2;
-        if (leftLegRef.current) leftLegRef.current.rotation.x = 0;
-        if (rightLegRef.current) rightLegRef.current.rotation.x = 0;
-        if (leftArmRef.current) leftArmRef.current.rotation.x = 0;
-        if (rightArmRef.current) rightArmRef.current.rotation.x = 0;
-
-        if (s.rideTimer >= step.duration && isTramStopped()) {
-          // Turun kembali ke peron stasiun
-          s.x = step.waitX;
-          s.z = step.waitZ;
-          s.phase = "walk";
-          s.stepIdx = (s.stepIdx + 1) % spec.schedule.length;
-        }
-      }
-      return;
-    }
-
-    // Jika menunggu trem di peron, menghadap ke rel kereta (+Z => rotation.y = 0)
-    if (s.phase === "wait_tram") {
-      setSitPose(false);
-      g.position.set(s.x, platformY(s.x, s.z), s.z);
-      g.rotation.y = isNear ? Math.atan2(dxP, dzP) : 0;
-      if (leftLegRef.current) leftLegRef.current.rotation.x *= 0.8;
-      if (rightLegRef.current) rightLegRef.current.rotation.x *= 0.8;
-      if (leftArmRef.current) leftArmRef.current.rotation.x *= 0.8;
-      if (rightArmRef.current) rightArmRef.current.rotation.x *= 0.8;
-
-      if (isTramStopped()) {
-        s.phase = "ride_tram";
-        s.rideTimer = 0;
-      }
-      return;
-    }
-
-    // Jika sedang duduk atau berkunjung di tempat tujuan
-    if (s.phase === "act" && step.kind !== "tram") {
-      s.timer -= delta;
-      const isSitStep = step.kind === "sit";
-      setSitPose(isSitStep);
-      const y = platformY(s.x, s.z) + (isSitStep ? 0 : Math.sin(t * 2) * 0.005);
-      g.position.set(s.x, y, s.z);
-      if (isSitStep) {
-        g.rotation.y = step.rotY;
-      } else {
-        g.rotation.y = isNear ? Math.atan2(dxP, dzP) : step.rotY;
-        if (leftLegRef.current) leftLegRef.current.rotation.x *= 0.8;
-        if (rightLegRef.current) rightLegRef.current.rotation.x *= 0.8;
-        if (leftArmRef.current) leftArmRef.current.rotation.x *= 0.8;
-        if (rightArmRef.current) rightArmRef.current.rotation.x *= 0.8;
-      }
-
-      if (s.timer <= 0 && !isNear) {
-        setSitPose(false);
-        s.phase = "walk";
-        s.stepIdx = (s.stepIdx + 1) % spec.schedule.length;
-      }
-      return;
-    }
-
-    // Fase berjalan menuju target aktivitas berikutnya (lewat zebra cross x = 0 jika menyeberang jalan)
-    setSitPose(false);
-    const destX = step.kind === "tram" ? step.waitX : step.x;
-    const destZ = step.kind === "tram" ? step.waitZ : step.z;
-
-    let targetX = destX;
-    let targetZ = destZ;
-
-    // Cek apakah harus menyeberangi jalan selatan (z 18.5..25.5) -> wajib lewat zebra cross x = 0
-    const crossesSouthFromNorth = s.z < 18.2 && destZ > 25.8;
-    const crossesSouthFromSouth = s.z > 25.8 && destZ < 18.2;
-    const signal = getTrafficSignal(t);
-
-    if (crossesSouthFromNorth) {
-      if (Math.abs(s.x) > 0.7 && s.z < 18.0) {
-        targetX = 0;
-        targetZ = 17.6;
-      } else {
-        // Sudah di mulut zebra cross: tunggu sampai lampu kendaraan kuning/merah
-        if (s.z >= 17.2 && s.z < 18.5 && signal === "green") {
-          g.position.set(s.x, platformY(s.x, s.z), s.z);
-          g.rotation.y = 0;
-          if (leftLegRef.current) leftLegRef.current.rotation.x *= 0.8;
-          if (rightLegRef.current) rightLegRef.current.rotation.x *= 0.8;
-          if (leftArmRef.current) leftArmRef.current.rotation.x *= 0.8;
-          if (rightArmRef.current) rightArmRef.current.rotation.x *= 0.8;
-          return;
-        }
-        targetX = 0;
-        targetZ = 26.4;
-      }
-    } else if (crossesSouthFromSouth) {
-      if (Math.abs(s.x) > 0.7 && s.z > 26.0) {
-        targetX = 0;
-        targetZ = 26.4;
-      } else {
-        if (s.z <= 26.8 && s.z > 25.5 && signal === "green") {
-          g.position.set(s.x, platformY(s.x, s.z), s.z);
-          g.rotation.y = Math.PI;
-          if (leftLegRef.current) leftLegRef.current.rotation.x *= 0.8;
-          if (rightLegRef.current) rightLegRef.current.rotation.x *= 0.8;
-          if (leftArmRef.current) leftArmRef.current.rotation.x *= 0.8;
-          if (rightArmRef.current) rightArmRef.current.rotation.x *= 0.8;
-          return;
-        }
-        targetX = 0;
-        targetZ = 17.6;
-      }
-    }
-
-    if (isNear && talkLine !== null) {
-      g.position.set(s.x, platformY(s.x, s.z), s.z);
-      g.rotation.y = Math.atan2(dxP, dzP);
-      if (leftLegRef.current) leftLegRef.current.rotation.x *= 0.8;
-      if (rightLegRef.current) rightLegRef.current.rotation.x *= 0.8;
-      if (leftArmRef.current) leftArmRef.current.rotation.x *= 0.8;
-      if (rightArmRef.current) rightArmRef.current.rotation.x *= 0.8;
-      return;
-    }
-
-    const dx = targetX - s.x;
-    const dz = targetZ - s.z;
-    const dist = Math.hypot(dx, dz);
-
-    if (dist < 0.25) {
-      s.x = targetX;
-      s.z = targetZ;
-      if (targetX === destX && targetZ === destZ) {
-        if (step.kind === "tram") {
-          s.phase = "wait_tram";
-        } else {
-          s.phase = "act";
-          s.timer = step.duration;
-        }
-      }
-      return;
-    }
-
-    const speed = 1.65;
-    const move = Math.min(dist, speed * delta);
-    s.x += (dx / dist) * move;
-    s.z += (dz / dist) * move;
-    s.yaw = Math.atan2(dx, dz);
-
-    g.position.set(
-      s.x,
-      platformY(s.x, s.z) + Math.abs(Math.sin(t * 7)) * 0.025,
-      s.z,
+    if (!g || !readNpcPose(id, pose)) return;
+    const isSit = pose.anim === 2;
+    if (isSit !== sitting) setSitting(isSit);
+    g.position.set(pose.x, pose.y, pose.z);
+    g.rotation.y = pose.yaw;
+    if (pose.ride === 1 || isSit) return;
+    swingBiped(
+      pose.anim === 1,
+      clock.elapsedTime * 7,
+      leftLegRef.current,
+      rightLegRef.current,
+      leftArmRef.current,
+      rightArmRef.current,
     );
-    g.rotation.y = s.yaw;
-
-    const swing = Math.sin(t * 7) * 0.48;
-    if (leftLegRef.current) leftLegRef.current.rotation.x = swing;
-    if (rightLegRef.current) rightLegRef.current.rotation.x = -swing;
-    if (leftArmRef.current) leftArmRef.current.rotation.x = -swing * 0.65;
-    if (rightArmRef.current) rightArmRef.current.rotation.x = swing * 0.65;
   });
-
   return (
     <group
       ref={groupRef}
       position={[spec.start[0], 0, spec.start[1]]}
       onClick={(e) => {
         e.stopPropagation();
-        const step = spec.schedule[st.current.stepIdx];
-        setTalkLine(step.line);
+        interactNpc(id);
       }}
       onPointerOver={() => (document.body.style.cursor = "pointer")}
       onPointerOut={() => (document.body.style.cursor = "")}

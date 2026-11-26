@@ -10,7 +10,11 @@ import { Traffic } from "@/components/city/life/traffic";
 
 export { Sway } from "@/components/city/life/shared";
 
-/** Semua elemen hidup kota. Tidak dikirim ke server dan tidak ikut collision. */
+/**
+ * Elemen hidup kota (mobil, pesepeda, kucing, pejalan kaki, NPC, dan trem).
+ * Posisi NPC dan lampu lalu lintas dikirim server lewat npc:world (lihat lib/npcRuntime.ts),
+ * sehingga semua pemain melihat posisi yang sama. Elemen ini tidak ikut collision.
+ */
 export function CityLife({ isNight = false }: { isNight?: boolean }) {
   return (
     <group>

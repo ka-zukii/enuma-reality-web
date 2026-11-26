@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { NpcFigure } from "@/components/NpcFigure";
-import { playerPos } from "@/lib/playerPosition";
-import { REDUCED_MOTION } from "@/components/city/life/shared";
+import { createNpcPose, interactNpc, readNpcPose, useNpcTalk, type NpcPose } from "@/lib/npcRuntime";
+import { swingBiped } from "@/lib/npcLimbs";
+
+const pose: NpcPose = createNpcPose();
 
 /* ============================================================
  * NPC BERSOSIALISASI & BERJALAN DI TAMAN
@@ -103,40 +105,15 @@ const CHATTING_NPCS: {
 
 function InteractiveNpc({ npc }: { npc: (typeof CHATTING_NPCS)[number] }) {
   const groupRef = useRef<THREE.Group>(null);
-  const [talkIndex, setTalkIndex] = useState<number | null>(null);
-  const nearRef = useRef(false);
-
-  useEffect(() => {
-    if (talkIndex === null) return;
-    const t = window.setTimeout(() => setTalkIndex(null), 4500);
-    return () => window.clearTimeout(t);
-  }, [talkIndex]);
+  const id = npc.name.toLowerCase();
+  const talkIndex = useNpcTalk(id);
 
   useFrame(() => {
     const g = groupRef.current;
-    if (!g) return;
-    const dx = playerPos.x - npc.pos[0];
-    const dz = playerPos.z - npc.pos[2];
-    const dist = Math.hypot(dx, dz);
-    const isNear = dist < 2.8;
-
-    // Jika pemain baru mendekat, NPC menyapa otomatis
-    if (isNear && !nearRef.current) {
-      setTalkIndex((prev) => (prev === null ? 0 : prev));
-    }
-    nearRef.current = isNear;
-
-    // Menoleh ke arah pemain saat diajak bicara (kecuali NPC yang sedang duduk di bangku)
-    if (!npc.sitting) {
-      const targetYaw =
-        isNear || talkIndex !== null ? Math.atan2(dx, dz) : npc.rotY;
-      const diff =
-        ((targetYaw - g.rotation.y + Math.PI) % (Math.PI * 2)) - Math.PI;
-      const shortest = diff < -Math.PI ? diff + Math.PI * 2 : diff;
-      g.rotation.y += shortest * 0.12;
-    }
+    if (!g || !readNpcPose(id, pose)) return;
+    // Posisi tetap; yang dikirim server hanya arah hadap (menoleh ke pemain)
+    g.rotation.y = pose.yaw;
   });
-
   return (
     <group
       ref={groupRef}
@@ -144,9 +121,7 @@ function InteractiveNpc({ npc }: { npc: (typeof CHATTING_NPCS)[number] }) {
       rotation={[0, npc.rotY, 0]}
       onClick={(e) => {
         e.stopPropagation();
-        setTalkIndex((prev) =>
-          prev === null ? 0 : (prev + 1) % npc.lines.length,
-        );
+        interactNpc(id);
       }}
       onPointerOver={() => (document.body.style.cursor = "pointer")}
       onPointerOut={() => (document.body.style.cursor = "")}
@@ -161,7 +136,7 @@ function InteractiveNpc({ npc }: { npc: (typeof CHATTING_NPCS)[number] }) {
           hairStyle: npc.hairStyle,
         }}
       />
-      {talkIndex !== null && (
+      {talkIndex >= 0 && (
         <Html
           position={[0, 2.15, 0]}
           center
@@ -189,54 +164,22 @@ const PARK_LINES = [
 export function SocialNpcs() {
   const parkWalkerRef = useRef<THREE.Group>(null);
   const parkLimbs = useRef<(THREE.Group | null)[]>([]);
-  const parkAngleRef = useRef(0);
-  const parkNearRef = useRef(false);
-  const [parkTalk, setParkTalk] = useState<number | null>(null);
+  const parkTalk = useNpcTalk("maya");
 
-  useEffect(() => {
-    if (parkTalk === null) return;
-    const t = window.setTimeout(() => setParkTalk(null), 4000);
-    return () => window.clearTimeout(t);
-  }, [parkTalk]);
-
-  useFrame(({ clock }, rawDelta) => {
-    if (REDUCED_MOTION) return;
-    const delta = Math.min(rawDelta, 0.05);
-    const t = clock.elapsedTime;
+  useFrame(({ clock }) => {
     const g = parkWalkerRef.current;
-    if (!g) return;
-
-    const px = -16 + Math.cos(parkAngleRef.current) * 3.5;
-    const pz = 32.5 + Math.sin(parkAngleRef.current) * 3.5;
-    const dx = playerPos.x - px;
-    const dz = playerPos.z - pz;
-    const isNear = Math.hypot(dx, dz) < 2.5;
-
-    if (isNear && !parkNearRef.current) {
-      setParkTalk((prev) => (prev === null ? 0 : prev));
-    }
-    parkNearRef.current = isNear;
-
-    if (isNear || parkTalk !== null) {
-      g.position.set(px, Math.sin(t * 2) * 0.005, pz);
-      g.rotation.y = Math.atan2(dx, dz);
-      for (const l of parkLimbs.current) {
-        if (l) l.rotation.x *= 0.8;
-      }
-      return;
-    }
-
-    parkAngleRef.current += delta * 0.35;
-    const a = parkAngleRef.current;
-    g.position.set(-16 + Math.cos(a) * 3.5, 0, 32.5 + Math.sin(a) * 3.5);
-    g.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a));
-    const swing = Math.sin(t * 5.2) * 0.45;
-    if (parkLimbs.current[0]) parkLimbs.current[0].rotation.x = swing;
-    if (parkLimbs.current[1]) parkLimbs.current[1].rotation.x = -swing;
-    if (parkLimbs.current[2]) parkLimbs.current[2].rotation.x = -swing * 0.65;
-    if (parkLimbs.current[3]) parkLimbs.current[3].rotation.x = swing * 0.65;
+    if (!g || !readNpcPose("maya", pose)) return;
+    g.position.set(pose.x, pose.y, pose.z);
+    g.rotation.y = pose.yaw;
+    swingBiped(
+      pose.anim === 1,
+      clock.elapsedTime * 5.2,
+      parkLimbs.current[0] ?? null,
+      parkLimbs.current[1] ?? null,
+      parkLimbs.current[2] ?? null,
+      parkLimbs.current[3] ?? null,
+    );
   });
-
   return (
     <group>
       {CHATTING_NPCS.map((n) => (
@@ -247,9 +190,7 @@ export function SocialNpcs() {
         position={[-12.5, 0, 32.5]}
         onClick={(e) => {
           e.stopPropagation();
-          setParkTalk((prev) =>
-            prev === null ? 0 : (prev + 1) % PARK_LINES.length,
-          );
+          interactNpc("maya");
         }}
         onPointerOver={() => (document.body.style.cursor = "pointer")}
         onPointerOut={() => (document.body.style.cursor = "")}
@@ -275,7 +216,7 @@ export function SocialNpcs() {
             parkLimbs.current[3] = el;
           }}
         />
-        {parkTalk !== null && (
+        {parkTalk >= 0 && (
           <Html
             position={[0, 2.15, 0]}
             center

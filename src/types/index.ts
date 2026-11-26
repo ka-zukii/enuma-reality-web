@@ -4,8 +4,7 @@ export type PlayerStatus =
   | "SORE"
   | "MALAM"
   | "STANDUP"
-  | "ISTIRAHAT"
-  | "TAMU";
+  | "ISTIRAHAT";
 export type MemberRole = "OWNER" | "ADMIN" | "MEMBER" | "GUEST";
 
 /** Sinkron dengan server. "reconnecting": socket putus, avatar ditahan server (grace period). */

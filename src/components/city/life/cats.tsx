@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
-import { playerPos } from "@/lib/playerPosition";
-import { REDUCED_MOTION, rnd } from "@/components/city/life/shared";
+import { createNpcPose, interactNpc, readNpcPose, useNpcTalk, type NpcPose } from "@/lib/npcRuntime";
+
+const pose: NpcPose = createNpcPose();
 
 /* ============================================================
  * KUCING KOTA INTERAKTIF
@@ -56,105 +57,36 @@ function CityCat({ cat }: { cat: (typeof CAT_SPECS)[number] }) {
   const ref = useRef<THREE.Group>(null);
   const tailRef = useRef<THREE.Mesh>(null);
   const legRefs = useRef<(THREE.Mesh | null)[]>([]);
-  const nearRef = useRef(false);
-  const [meow, setMeow] = useState(false);
+  const id = `cat-${cat.name.toLowerCase()}`;
+  // Mengeong = bubble aktif dari server (dipicu pemain dekat atau klik)
+  const meow = useNpcTalk(id) >= 0;
 
-  const st = useRef({
-    x: cat.waypoints[0][0],
-    z: cat.waypoints[0][1],
-    yaw: 0,
-    wpIdx: 1,
-    wait: 0,
-  });
-
-  useEffect(() => {
-    if (!meow) return;
-    const t = window.setTimeout(() => setMeow(false), 3000);
-    return () => window.clearTimeout(t);
-  }, [meow]);
-
-  useFrame(({ clock }, rawDelta) => {
-    if (REDUCED_MOTION) return;
-    const dt = Math.min(rawDelta, 0.05);
-    const t = clock.elapsedTime;
+  useFrame(({ clock }) => {
     const g = ref.current;
-    if (!g) return;
-
-    const s = st.current;
-    const dxP = playerPos.x - s.x;
-    const dzP = playerPos.z - s.z;
-    const isNear = Math.hypot(dxP, dzP) < 2.2;
-
-    if (isNear && !nearRef.current) setMeow(true);
-    nearRef.current = isNear;
-
-    if (tailRef.current) {
-      tailRef.current.rotation.z = Math.sin(t * 5.5) * 0.35;
+    if (!g || !readNpcPose(id, pose)) return;
+    const t = clock.elapsedTime;
+    if (tailRef.current) tailRef.current.rotation.z = Math.sin(t * 5.5) * 0.35;
+    g.position.set(pose.x, pose.y, pose.z);
+    g.rotation.y = pose.yaw;
+    const legs = legRefs.current;
+    if (pose.anim === 1) {
+      // Gerak kaki diagonal (depan kiri + belakang kanan seirama)
+      const swing = Math.sin(t * 9) * 0.45;
+      if (legs[0]) legs[0].rotation.x = swing;
+      if (legs[1]) legs[1].rotation.x = -swing;
+      if (legs[2]) legs[2].rotation.x = -swing;
+      if (legs[3]) legs[3].rotation.x = swing;
+    } else {
+      for (const l of legs) if (l) l.rotation.x *= 0.8;
     }
-
-    const relaxLegs = () => {
-      for (const l of legRefs.current) {
-        if (l) l.rotation.x *= 0.8;
-      }
-    };
-
-    if (isNear || meow) {
-      const targetYaw = Math.atan2(dxP, dzP);
-      const diff = ((targetYaw - s.yaw + Math.PI) % (Math.PI * 2)) - Math.PI;
-      s.yaw += (diff < -Math.PI ? diff + Math.PI * 2 : diff) * 0.14;
-      g.position.set(s.x, 0, s.z);
-      g.rotation.y = s.yaw;
-      relaxLegs();
-      return;
-    }
-
-    if (s.wait > 0) {
-      s.wait -= dt;
-      g.position.set(s.x, 0, s.z);
-      g.rotation.y = s.yaw;
-      relaxLegs();
-      return;
-    }
-
-    const [tx, tz] = cat.waypoints[s.wpIdx];
-    const dx = tx - s.x;
-    const dz = tz - s.z;
-    const dist = Math.hypot(dx, dz);
-
-    if (dist < 0.15) {
-      s.x = tx;
-      s.z = tz;
-      s.wpIdx = (s.wpIdx + 1) % cat.waypoints.length;
-      s.wait = 1.5 + rnd(s.wpIdx, 4) * 2.0;
-      return;
-    }
-
-    const step = Math.min(dist, cat.speed * dt);
-    s.x += (dx / dist) * step;
-    s.z += (dz / dist) * step;
-
-    const targetYaw = Math.atan2(dx, dz);
-    const diff = ((targetYaw - s.yaw + Math.PI) % (Math.PI * 2)) - Math.PI;
-    s.yaw += (diff < -Math.PI ? diff + Math.PI * 2 : diff) * 0.16;
-
-    g.position.set(s.x, Math.abs(Math.sin(t * 9)) * 0.014, s.z);
-    g.rotation.y = s.yaw;
-
-    // Gerak kaki diagonal (depan kiri + belakang kanan seirama)
-    const swing = Math.sin(t * 9) * 0.45;
-    if (legRefs.current[0]) legRefs.current[0].rotation.x = swing;
-    if (legRefs.current[1]) legRefs.current[1].rotation.x = -swing;
-    if (legRefs.current[2]) legRefs.current[2].rotation.x = -swing;
-    if (legRefs.current[3]) legRefs.current[3].rotation.x = swing;
   });
-
   return (
     <group
       ref={ref}
       position={[cat.waypoints[0][0], 0, cat.waypoints[0][1]]}
       onClick={(e) => {
         e.stopPropagation();
-        setMeow(true);
+        interactNpc(id);
       }}
       onPointerOver={() => (document.body.style.cursor = "pointer")}
       onPointerOut={() => (document.body.style.cursor = "")}

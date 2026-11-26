@@ -2,38 +2,25 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { NpcFigure } from "@/components/NpcFigure";
-import { laneLength, sampleLane } from "@/components/city/life/lanes";
-import type { LaneSpec } from "@/components/city/life/lanes";
-import { REDUCED_MOTION } from "@/components/city/life/shared";
+import { createNpcPose, readNpcPose } from "@/lib/npcRuntime";
 
 /* ============================================================
  * PESEPEDA KOTA
+ * Posisi dikirim server ("cyclist-0", "cyclist-1"). Putaran roda
+ * tetap dihitung di client karena hanya kosmetik.
  * ============================================================ */
-const CYCLIST_LANE: LaneSpec = {
-  minX: -36.8,
-  maxX: 36.8,
-  minZ: -24.0,
-  maxZ: 15.6,
-  r: 3.0,
-  dir: 1,
-};
+const pose = createNpcPose();
 
 export function CityCyclists() {
   const refs = useRef<(THREE.Group | null)[]>([]);
   const wheels = useRef<(THREE.Group | null)[]>([]);
-  const total = laneLength(CYCLIST_LANE);
 
-  useFrame(({ clock }) => {
-    if (REDUCED_MOTION) return;
-    const t = clock.elapsedTime;
-
-    [0, 0.5].forEach((offset, i) => {
+  useFrame(() => {
+    [0, 1].forEach((i) => {
       const g = refs.current[i];
-      if (!g) return;
-      const dist = t * 3.4 + offset * total;
-      const s = sampleLane(CYCLIST_LANE, dist);
-      g.position.set(s.x, 0, s.z);
-      g.rotation.y = Math.atan2(s.tx, s.tz);
+      if (!g || !readNpcPose(`cyclist-${i}`, pose)) return;
+      g.position.set(pose.x, 0, pose.z);
+      g.rotation.y = pose.yaw;
       for (let k = 0; k < 2; k++) {
         const w = wheels.current[i * 2 + k];
         if (w) w.rotation.x += 0.18;

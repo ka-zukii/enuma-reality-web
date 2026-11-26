@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { getTrafficSignal } from "@/components/city/life/traffic";
+import { getNpcSignal } from "@/lib/npcRuntime";
 
 /* ============================================================
  * LAMPU LALU LINTAS AKTIF DI ZEBRA CROSS
@@ -26,8 +26,8 @@ export function TrafficLights() {
   const yellowRefs = useRef<(THREE.MeshStandardMaterial | null)[]>([]);
   const greenRefs = useRef<(THREE.MeshStandardMaterial | null)[]>([]);
 
-  useFrame(({ clock }) => {
-    const sig = getTrafficSignal(clock.elapsedTime);
+  useFrame(() => {
+    const sig = getNpcSignal();
     for (let i = 0; i < SIGNAL_POLES.length; i++) {
       for (let side = 0; side < 2; side++) {
         const idx = i * 2 + side;

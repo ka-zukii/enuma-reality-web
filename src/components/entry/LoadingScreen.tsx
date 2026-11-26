@@ -14,6 +14,7 @@ import {
   type MotionValue,
 } from "framer-motion";
 import { useProgress } from "@react-three/drei";
+import { useServerReady } from "@/lib/serverHealth";
 
 // Durasi minimum layar loading tampil, supaya tidak berkedip
 // ketika aset sudah termuat sangat cepat.
@@ -121,8 +122,19 @@ export default function LoadingScreen({ onDone }: { onDone?: () => void }) {
     return () => window.clearInterval(id);
   }, []);
 
-  const percent = total === 0 ? fallback : Math.min(100, Math.round(progress));
-  const ready = minElapsed && (total === 0 || (!active && progress >= 100));
+  // Layar baru selesai setelah aset termuat DAN server menjawab /health
+  const { ready: serverReady, slow: serverSlow } = useServerReady();
+  const assetsReady = total === 0 || (!active && progress >= 100);
+  const assetPercent = total === 0 ? fallback : Math.min(100, Math.round(progress));
+  // Selama server belum siap, progres tertahan di 95% agar tidak terlihat sudah selesai
+  const percent = serverReady ? assetPercent : Math.min(assetPercent, 95);
+  const ready = minElapsed && assetsReady && serverReady;
+  const waitingServer = assetsReady && !serverReady;
+  const statusText = waitingServer
+    ? serverSlow
+      ? "Server sedang dinyalakan, mohon tunggu..."
+      : "Menghubungkan ke server..."
+    : statusFor(percent);
   const ratio = Math.min(1, percent / 100);
 
   useEffect(() => {
@@ -331,14 +343,14 @@ export default function LoadingScreen({ onDone }: { onDone?: () => void }) {
               <div className="mt-2 flex items-center justify-between text-xs font-medium tabular-nums text-blue-700">
                 <AnimatePresence mode="wait">
                   <motion.span
-                    key={statusFor(percent)}
+                    key={statusText}
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.25 }}
                     className="text-blue-800/80"
                   >
-                    {statusFor(percent)}
+                    {statusText}
                   </motion.span>
                 </AnimatePresence>
                 <span>{percent}%</span>

@@ -5,6 +5,7 @@ import {
   type TramSnapshot,
 } from "@/lib/tramRuntime";
 import { syncWorldClock } from "@/lib/worldClock";
+import { applyNpcSnapshot, resetNpcRuntime, setNpcEmitter, type NpcSnapshot } from "@/lib/npcRuntime";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 import { authFetch } from "@/lib/api";
@@ -162,6 +163,7 @@ export function useOfficeSocket(
       reconnectingIdsRef.current.clear();
       idleRef.current = false;
       resetTramSnapshot();
+      resetNpcRuntime();
     },
     [settlePendingJoin, clearAllBubbleTimers],
   );
@@ -397,6 +399,12 @@ export function useOfficeSocket(
           applyTramSnapshot(world.tram);
         },
       );
+
+      // NPC kota dikirim server (10 Hz). Client hanya menampilkan posisinya.
+      newSocket.on("npc:world", (snap: NpcSnapshot) => {
+        applyNpcSnapshot(snap);
+      });
+      setNpcEmitter((id) => newSocket.emit("npc:interact", { id }));
 
       // Update ref secara langsung tanpa memicu React re-render
       newSocket.on(

@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { NpcFigure } from "@/components/NpcFigure";
-import { playerPos } from "@/lib/playerPosition";
+import { createNpcPose, interactNpc, readNpcPose, useNpcTalk, type NpcPose } from "@/lib/npcRuntime";
+import { swingBiped } from "@/lib/npcLimbs";
+
+const pose: NpcPose = createNpcPose();
 import {
   HAIR_COLORS,
   PANTS,
-  REDUCED_MOTION,
   SHIRTS,
   SKINS,
   rnd,
@@ -59,6 +61,7 @@ const WALKERS = Array.from({ length: 8 }, (_, i) => {
   // Spawn merata di 4 titik per trotoar agar tidak bertumpuk
   const startX = lane.minX + ((slot + 0.5) / 4) * (lane.maxX - lane.minX);
   return {
+    id: `walker-${i}`,
     name: WALKER_NAMES[i % WALKER_NAMES.length],
     lines: WALKER_LINES[i % WALKER_LINES.length],
     lane: laneIdx,
@@ -75,108 +78,34 @@ const WALKERS = Array.from({ length: 8 }, (_, i) => {
 });
 
 function InteractiveWalker({ w }: { w: (typeof WALKERS)[number] }) {
-  const lane = WALK_LANES[w.lane];
   const groupRef = useRef<THREE.Group>(null);
   const leftLegRef = useRef<THREE.Group>(null);
   const rightLegRef = useRef<THREE.Group>(null);
   const leftArmRef = useRef<THREE.Group>(null);
   const rightArmRef = useRef<THREE.Group>(null);
+  const talkIndex = useNpcTalk(w.id);
 
-  const st = useRef({
-    x: w.startX,
-    dir: w.dir,
-    yaw: w.dir > 0 ? Math.PI / 2 : -Math.PI / 2,
-    pauseTimer: 0,
-    nextPauseIn: 4 + rnd(w.startX, 3) * 6,
-  });
-  const nearRef = useRef(false);
-  const [talkIndex, setTalkIndex] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (talkIndex === null) return;
-    const t = window.setTimeout(() => setTalkIndex(null), 4000);
-    return () => window.clearTimeout(t);
-  }, [talkIndex]);
-
-  useFrame(({ clock }, rawDelta) => {
-    if (REDUCED_MOTION) return;
-    const delta = Math.min(rawDelta, 0.05);
+  useFrame(({ clock }) => {
     const g = groupRef.current;
-    if (!g) return;
-    const s = st.current;
-    const t = clock.elapsedTime;
-
-    const dxP = playerPos.x - s.x;
-    const dzP = playerPos.z - w.startZ;
-    const isNear = Math.hypot(dxP, dzP) < 2.4;
-
-    if (isNear && !nearRef.current) {
-      setTalkIndex((prev) => (prev === null ? 0 : prev));
-    }
-    nearRef.current = isNear;
-
-    // Berhenti sejenak saat diajak bicara atau sedang istirahat natural
-    const talking = isNear || talkIndex !== null;
-    if (!talking) {
-      s.nextPauseIn -= delta;
-      if (s.nextPauseIn <= 0) {
-        s.pauseTimer = 1.5 + rnd(Math.floor(t), 7) * 1.5;
-        s.nextPauseIn = 6 + rnd(Math.floor(t), 9) * 6;
-      }
-    }
-
-    if (talking || s.pauseTimer > 0) {
-      if (!talking) s.pauseTimer -= delta;
-      const targetYaw = talking
-        ? Math.atan2(dxP, dzP)
-        : s.dir > 0
-          ? Math.PI / 2
-          : -Math.PI / 2;
-      const diff = ((targetYaw - s.yaw + Math.PI) % (Math.PI * 2)) - Math.PI;
-      const shortest = diff < -Math.PI ? diff + Math.PI * 2 : diff;
-      s.yaw += shortest * 0.14;
-
-      g.position.set(s.x, Math.sin(t * 2) * 0.006, w.startZ);
-      g.rotation.y = s.yaw;
-      if (leftLegRef.current) leftLegRef.current.rotation.x *= 0.8;
-      if (rightLegRef.current) rightLegRef.current.rotation.x *= 0.8;
-      if (leftArmRef.current) leftArmRef.current.rotation.x *= 0.8;
-      if (rightArmRef.current) rightArmRef.current.rotation.x *= 0.8;
-      return;
-    }
-
-    s.x += s.dir * w.speed * delta;
-    if (s.x >= lane.maxX) {
-      s.x = lane.maxX;
-      s.dir = -1;
-    } else if (s.x <= lane.minX) {
-      s.x = lane.minX;
-      s.dir = 1;
-    }
-    const targetYaw = s.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
-    const diff = ((targetYaw - s.yaw + Math.PI) % (Math.PI * 2)) - Math.PI;
-    const shortest = diff < -Math.PI ? diff + Math.PI * 2 : diff;
-    s.yaw += shortest * 0.18;
-
-    g.position.set(s.x, Math.abs(Math.sin(t * w.speed * 6)) * 0.025, w.startZ);
-    g.rotation.y = s.yaw;
-
-    const swing = Math.sin(t * w.speed * 5.5) * 0.48;
-    if (leftLegRef.current) leftLegRef.current.rotation.x = swing;
-    if (rightLegRef.current) rightLegRef.current.rotation.x = -swing;
-    if (leftArmRef.current) leftArmRef.current.rotation.x = -swing * 0.65;
-    if (rightArmRef.current) rightArmRef.current.rotation.x = swing * 0.65;
+    if (!g || !readNpcPose(w.id, pose)) return;
+    g.position.set(pose.x, pose.y, pose.z);
+    g.rotation.y = pose.yaw;
+    swingBiped(
+      pose.anim === 1,
+      clock.elapsedTime * w.speed * 5.5,
+      leftLegRef.current,
+      rightLegRef.current,
+      leftArmRef.current,
+      rightArmRef.current,
+    );
   });
-
   return (
     <group
       ref={groupRef}
       position={[w.startX, 0, w.startZ]}
       onClick={(e) => {
         e.stopPropagation();
-        setTalkIndex((prev) =>
-          prev === null ? 0 : (prev + 1) % w.lines.length,
-        );
+        interactNpc(w.id);
       }}
       onPointerOver={() => (document.body.style.cursor = "pointer")}
       onPointerOut={() => (document.body.style.cursor = "")}
@@ -194,7 +123,7 @@ function InteractiveWalker({ w }: { w: (typeof WALKERS)[number] }) {
         leftArmRef={leftArmRef}
         rightArmRef={rightArmRef}
       />
-      {talkIndex !== null && (
+      {talkIndex >= 0 && (
         <Html
           position={[0, 2.15, 0]}
           center

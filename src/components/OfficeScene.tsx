@@ -39,7 +39,7 @@ import {
   type RiderState,
 } from "@/lib/tramRuntime";
 import { platformY } from "@/config/railway";
-import { findNearestSeat, type SeatConfig } from "@/config/seats";
+import { findNearestSeat, type SeatConfig, CITY_SEATS } from "@/config/seats";
 
 interface OfficeSceneProps {
   socket: Socket | null;
@@ -88,6 +88,7 @@ const MAX_DT = 1 / 30;
 const DEFAULT_SPAWN: Vec3 = [0, 0, 3];
 /** Sesuai tepi paving 84x84 di CityEnvironment.tsx */
 const CITY_BOUNDS = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
+const LANDING_TARGET: Vec3 = [8.7, 4.5, -4];
 
 const noop = () => {};
 
@@ -191,7 +192,90 @@ export function OfficeScene({
 }: OfficeSceneProps) {
   const isInterior = interior !== undefined;
   const bounds = interior ? interior.config.bounds : CITY_BOUNDS;
-  const obstacles = interior ? interior.config.obstacles : CITY_OBSTACLES;
+  // Batas jarak kamera: sampai menyentuh dinding (raycast ke geometri interior / kota).
+  // Saat tembok sudah tidak menghalangi, kamera kembali ke jarak yang diinginkan pemain.
+  useFrame(({ camera }, delta) => {
+    const controls = controlsRef.current;
+    const group = isInterior ? interiorGroupRef.current : cityGroupRef.current;
+    if (!controls || !group || cameraMode === "first" || spectator) return;
+
+    const target = controls.target as THREE.Vector3;
+    const dir = new THREE.Vector3().subVectors(camera.position, target);
+    const dist = dir.length();
+    if (dist < 1e-4) return;
+    dir.divideScalar(dist);
+
+    // Jarak awal dijadikan jarak yang diinginkan
+    if (prefDistRef.current === null) prefDistRef.current = dist;
+
+    const maxRange = isInterior ? 14 : spectator ? 90 : 48;
+    const ray = wallRayRef.current;
+    ray.set(target, dir);
+    ray.far = maxRange;
+    const hits = ray.intersectObject(group, true);
+
+    // Di kota, abaikan permukaan datar (tanah, jalan, atap) supaya kamera tidak terpotong saat melihat ke bawah
+    let hit: THREE.Intersection | undefined;
+    if (isInterior) {
+      hit = hits[0];
+    } else {
+      hit = hits.find((h) => {
+        if (!h.face) return false;
+        const n = h.face.normal.clone().transformDirection(h.object.matrixWorld);
+        return Math.abs(n.y) < 0.6;
+      });
+    }
+
+    const wallMargin = 0.3;
+    const allowed = hit ? Math.max(0.5, hit.distance - wallMargin) : maxRange;
+    controls.maxDistance = Math.min(maxRange, allowed);
+
+    // Jarak tujuan: jarak yang diinginkan, tapi tidak lebih jauh dari tembok
+    const goal = Math.min(prefDistRef.current, controls.maxDistance);
+
+    if (dist > goal) {
+      // Tembok menghalangi: tarik kamera ke dalam
+      camera.position.copy(target).addScaledVector(dir, goal);
+    } else if (dist < goal - 0.01 && desiredDistRef.current === null) {
+      // Tembok sudah tidak menghalangi: kembali perlahan ke jarak yang diinginkan
+      const next = THREE.MathUtils.lerp(dist, goal, 1 - Math.exp(-6 * delta));
+      camera.position.copy(target).addScaledVector(dir, next);
+    }
+  });
+
+  // Status buka/tutup tiap pintu interior, dicatat berdasarkan id pintu
+  const [openDoors, setOpenDoors] = useState<Record<string, boolean>>({});
+  // Salinan status pintu untuk dibaca di useFrame (tanpa re-render)
+  const openDoorsRef = useRef(openDoors);
+  openDoorsRef.current = openDoors;  
+  const baseObstacles = interior ? interior.config.obstacles : CITY_OBSTACLES;
+  // Pintu tertutup: daun pintu jadi penghalang. Pintu terbuka: potongan dinding di lubang pintu dibuka
+  // Penghalang: pintu tertutup menambah penghalang daun pintu; pintu terbuka melubangi dinding
+  const activeSeats = interior?.config.seats ?? CITY_SEATS;  
+  const obstacles = (() => {
+    const doorList = interior?.config.doors ?? [];
+    if (doorList.length === 0) return baseObstacles;
+    let result = [...baseObstacles];
+    for (const d of doorList) {
+      if (!openDoors[d.id]) {
+        result.push(d.blocker);
+        continue;
+      }
+      if (d.wallTarget && d.wallOpen) {
+        const t = d.wallTarget;
+        const open = d.wallOpen;
+        result = result.flatMap((o) =>
+          o.minX === t.minX &&
+          o.maxX === t.maxX &&
+          o.minZ === t.minZ &&
+          o.maxZ === t.maxZ
+            ? open
+            : [o],
+        );
+      }
+    }
+    return result;
+  })();
   const spawn: Vec3 = interior
     ? interior.config.spawn
     : (initialPosition ?? DEFAULT_SPAWN);
@@ -220,6 +304,9 @@ export function OfficeScene({
   const lastHintRef = useRef<string | null>(null);
 
   const controlsRef = useRef<any>(null);
+  const interiorGroupRef = useRef<THREE.Group>(null);
+  const cityGroupRef = useRef<THREE.Group>(null);
+  const wallRayRef = useRef(new THREE.Raycaster());
   const keysPressed = useRef<Record<string, boolean>>({});
   const emitTimer = useRef(0);
   const posReportTimer = useRef(0);
@@ -229,6 +316,7 @@ export function OfficeScene({
   const [isFirstPerson, setIsFirstPerson] = useState(false);
   const prevModeRef = useRef<CameraMode>(cameraMode);
   const desiredDistRef = useRef<number | null>(null);
+  const prefDistRef = useRef<number | null>(null);
   const { gl } = useThree();
 
   // Vektor yang dipakai ulang setiap frame. Tidak ada alokasi baru di dalam useFrame.
@@ -283,7 +371,7 @@ export function OfficeScene({
       if (isChatFocused) return;
       keysPressed.current[e.code] = true;
 
-      if (e.code === "KeyE" && !e.repeat && !isInterior && !spectator) {
+      if (e.code === "KeyE" && !e.repeat && !spectator) {
         // Jangan bentrok jika pemain sedang di dalam/dekat pintu trem
         const cur = localStateRef.current;
         if (riderRef.current.riding || isNearTramDoor(cur.position[0], cur.position[2])) {
@@ -298,7 +386,7 @@ export function OfficeScene({
           };
           return;
         }
-        const seat = findNearestSeat(cur.position[0], cur.position[2]);
+        const seat = findNearestSeat(cur.position[0], cur.position[2], activeSeats);
         if (seat) {
           standPosRef.current = [cur.position[0], cur.position[1], cur.position[2]];
           sittingSeatRef.current = seat;
@@ -331,17 +419,41 @@ export function OfficeScene({
   }, [isChatFocused]);
 
   // Saat chat diaktifkan, tombol gerak tidak boleh tersisa sebagai "tertekan"
+  // Reset semua pintu saat pindah gedung
   useEffect(() => {
-    if (!isChatFocused) return;
-    const keys = keysPressed.current;
-    for (const code of Object.keys(keys)) keys[code] = false;
-  }, [isChatFocused]);
+    setOpenDoors({});
+  }, [interior?.config.buildingKey]);
+
+  // Tekan E di dekat pintu interior: buka/tutup pintu terdekat dalam jarak tekan
+  useEffect(() => {
+    const doorList = interior?.config.doors ?? [];
+    if (!isInterior || doorList.length === 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (isChatFocused || e.code !== "KeyE" || e.repeat) return;
+      const p = localStateRef.current.position;
+      let best: (typeof doorList)[number] | null = null;
+      let bestDist = Infinity;
+      for (const d of doorList) {
+        const dist = Math.hypot(p[0] - d.center[0], p[2] - d.center[2]);
+        if (dist <= d.reach && dist < bestDist) {
+          best = d;
+          bestDist = dist;
+        }
+      }
+      if (best) {
+        const id = best.id;
+        setOpenDoors((prev) => ({ ...prev, [id]: !prev[id] }));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isInterior, interior, isChatFocused]);
 
   // Smooth & responsif zoom dengan scroll wheel / trackpad (mengurangi jumlah guliran)
   useEffect(() => {
     const dom = gl.domElement;
     const minDist = 0.3;
-    const maxDist = isInterior ? 14 : 48;
+    const maxDist = isInterior ? 14 : spectator ? 90 : 48;
 
     const onWheel = (e: WheelEvent) => {
       if (cameraMode === "first" || !controlsRef.current) return;
@@ -356,6 +468,7 @@ export function OfficeScene({
             : e.deltaY;
 
       const curDist =
+        prefDistRef.current ??
         desiredDistRef.current ??
         controlsRef.current.object.position.distanceTo(
           controlsRef.current.target,
@@ -366,13 +479,14 @@ export function OfficeScene({
         maxDist,
       );
       desiredDistRef.current = next;
+      prefDistRef.current = next;
     };
 
     dom.addEventListener("wheel", onWheel, { passive: false, capture: true });
     return () => {
       dom.removeEventListener("wheel", onWheel, { capture: true });
     };
-  }, [gl, cameraMode, isInterior]);
+  }, [gl, cameraMode, isInterior, spectator]);
 
   const readyFramesRef = useRef(0);
   const readySentRef = useRef(false);
@@ -514,6 +628,8 @@ export function OfficeScene({
     const hintGroup = tramHintGroupRef.current;
     if (hintGroup) {
       let hint: string | null = null;
+      // Posisi hint: default di atas karakter, khusus pintu di atas pintu
+      let hintPos: Vec3 = [cur.position[0], cur.position[1] + 2.5, cur.position[2]];      
       if (!isInterior && !spectator) {
         if (ride?.riding) {
           if (isTramStopped()) hint = "Tekan E untuk turun";
@@ -523,16 +639,35 @@ export function OfficeScene({
             : "Tunggu trem berhenti untuk naik";
         } else if (sittingSeatRef.current) {
           hint = "Tekan E untuk berdiri";
-        } else if (findNearestSeat(cur.position[0], cur.position[2])) {
+        } else if (findNearestSeat(cur.position[0], cur.position[2], activeSeats)) {
           hint = "Tekan E untuk duduk";
         }
       }
+      // Di dalam gedung: label muncul di atas pintu terdekat dalam jarak tekan
+      if (isInterior) {
+        const doorList = interiorRef.current?.config.doors ?? [];
+        let best: (typeof doorList)[number] | null = null;
+        let bestDist = Infinity;
+        for (const d of doorList) {
+          const dd = Math.hypot(cur.position[0] - d.center[0], cur.position[2] - d.center[2]);
+          if (dd <= d.reach && dd < bestDist) {
+            best = d;
+            bestDist = dd;
+          }
+        }
+        if (best) {
+          hint = openDoorsRef.current[best.id]
+            ? "Tekan E untuk tutup pintu"
+            : "Tekan E untuk buka pintu";
+          hintPos = [best.center[0], 2.2, best.center[2]];
+        }
+      }      
       hintGroup.visible = hint !== null;
       if (tramHintTextRef.current) {
         tramHintTextRef.current.style.display = hint ? "block" : "none";
       }
       if (hint) {
-        hintGroup.position.set(cur.position[0], cur.position[1] + 2.5, cur.position[2]);
+        hintGroup.position.set(hintPos[0], hintPos[1], hintPos[2]);
         if (hint !== lastHintRef.current && tramHintTextRef.current) {
           tramHintTextRef.current.textContent = hint;
           lastHintRef.current = hint;
@@ -540,13 +675,19 @@ export function OfficeScene({
       }
     }
 
-    // Pintu keluar interior: begitu pemain sampai di sana, kembali ke kota
+    // Pintu keluar interior: begitu pemain sampai di salah satu pintu keluar, kembali ke kota
     const activeInterior = interiorRef.current;
     if (activeInterior && !exitTriggeredRef.current) {
-      const exit = activeInterior.config.exit;
-      if (distXZ(cur.position, exit.position) <= exit.radius) {
-        exitTriggeredRef.current = true;
-        activeInterior.onExit();
+      const exits = [
+        activeInterior.config.exit,
+        ...(activeInterior.config.extraExits ?? []),
+      ];
+      for (const exit of exits) {
+        if (distXZ(cur.position, exit.position) <= exit.radius) {
+          exitTriggeredRef.current = true;
+          activeInterior.onExit();
+          break;
+        }
       }
     }
 
@@ -655,6 +796,15 @@ export function OfficeScene({
       }
     }
 
+    // DEBUG sementara: koordinat di kota saat bergerak
+    if (!isInterior && moveDir.lengthSq() > 0) {
+      debugPosTimer.current += delta;
+      if (debugPosTimer.current >= 0.4) {
+        debugPosTimer.current = 0;
+        console.log(`[City Pos] x=${cur.position[0].toFixed(2)}, z=${cur.position[2].toFixed(2)}`);
+      }
+    }
+
     // Laporkan posisi ke App dengan throttle (untuk popup masuk gedung)
     posReportTimer.current += delta;
     if (
@@ -668,14 +818,20 @@ export function OfficeScene({
 
   let environment: ReactNode;
   if (interior) {
-    environment = <InteriorEnvironment config={interior.config} />;
+    environment = (
+      <group ref={interiorGroupRef}>
+        <InteriorEnvironment config={interior.config} openDoors={openDoors} />
+      </group>
+    );
   } else {
     environment = (
-      <CityEnvironment
-        onBuildingSelect={onBuildingSelect ?? noop}
-        showLabels={cameraMode !== "first" && labelsVisible}
-        timeMode={timeMode}
-      />
+      <group ref={cityGroupRef}>
+        <CityEnvironment
+          onBuildingSelect={onBuildingSelect ?? noop}
+          showLabels={cameraMode !== "first" && labelsVisible}
+          timeMode={timeMode}
+        />
+      </group>
     );
   }
 
@@ -711,15 +867,15 @@ export function OfficeScene({
         dampingFactor={0.07}
         maxPolarAngle={Math.PI * 0.92}
         minDistance={cameraMode === "first" ? 0.6 : 0.3}
-        maxDistance={cameraMode === "first" ? 0.6 : isInterior ? 14 : 48}
+        maxDistance={cameraMode === "first" ? 0.6 : isInterior ? 14 : spectator ? 90 : 48}
         enableZoom={cameraMode !== "first"}
         zoomSpeed={1.8}
-        target={[spawn[0], 1.55, spawn[2]]}
+        target={spectator ? LANDING_TARGET : [spawn[0], 1.55, spawn[2]]}
       />
 
       {environment}
 
-      {!isInterior && !spectator && (
+      {!spectator && (
         <group ref={tramHintGroupRef} visible={false}>
           <Html center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
             <div

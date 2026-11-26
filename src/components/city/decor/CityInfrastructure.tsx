@@ -261,7 +261,7 @@ export function CityInfrastructure({ isNight = false }: { isNight?: boolean }) {
 
       {/* Parkiran sepeda di depan Indomart & Kantor Enuma */}
       <BikeParking position={[-19.5, 0, 13.5]} />
-      <BikeParking position={[14.5, 0, 13.5]} />
+      <BikeParking position={[19.5, 0, 13.5]} />
 
       {/* Hologram kota mini 3D di area terbuka antara jalur tengah dan plaza timur */}
       <CityHologram position={[4.6, 0, 31.0]} isNight={isNight} />

@@ -32,11 +32,12 @@ export const CITY_SEATS: SeatConfig[] = [
 export function findNearestSeat(
   x: number,
   z: number,
+  seats: SeatConfig[] = CITY_SEATS,
   maxDist = 1.75,
 ): SeatConfig | null {
   let best: SeatConfig | null = null;
   let bestD = maxDist;
-  for (const s of CITY_SEATS) {
+  for (const s of seats) {
     const d = Math.hypot(x - s.x, z - s.z);
     if (d < bestD) {
       bestD = d;

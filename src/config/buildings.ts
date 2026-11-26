@@ -1,3 +1,5 @@
+import { SOLID_PROP_BOXES } from "@/config/cityProps";
+import { ENUMA_FURNITURE_BOXES, ENUMA_SEATS } from "@/config/interiorFurniture";
 export type Vec3 = [number, number, number];
 
 /** Kotak collision dua dimensi di bidang XZ */
@@ -54,6 +56,28 @@ export interface StairsConfig {
   height: number;
 }
 
+/** Pintu yang bisa dibuka/ditutup dengan tombol E */
+export interface InteriorDoor {
+  /** Id unik pintu di gedung ini */
+  id: string;
+  /** Nama mesh daun pintu & knob di file .glb (boleh dengan spasi dan titik) */
+  parts: string[];
+  /** Engsel dalam koordinat interior (X dan Z, Y diabaikan) */
+  hinge: Vec3;
+  /** Pusat pintu, dipakai untuk jarak tekan E */
+  center: Vec3;
+  /** Jarak maksimal karakter dari pusat pintu agar bisa tekan E */
+  reach: number;
+  /** Sudut buka (radian). Positif = pintu terbuka ke dalam ruangan */
+  openAngle: number;
+  /** Penghalang saat pintu tertutup */
+  blocker: Box;
+  /** Potongan dinding statis yang harus dilubangi saat pintu terbuka (opsional) */
+  wallTarget?: Box;
+  /** Pengganti potongan dinding itu saat pintu terbuka */
+  wallOpen?: Box[];
+}
+
 export interface InteriorConfig {
   name: string;
   accent: string;
@@ -72,6 +96,12 @@ export interface InteriorConfig {
   exit: { position: Vec3; radius: number };
   /** Benda di dalam ruangan yang tidak bisa ditembus (meja, rak, dll) */
   obstacles: Box[];
+  /** Titik duduk di dalam gedung (opsional) */
+  seats?: { id: string; x: number; y: number; z: number; rotationY: number }[];  
+  /** Pintu interaktif (opsional) */
+  doors?: InteriorDoor[]; 
+  /** Pintu keluar tambahan selain `exit` utama (opsional) */
+  extraExits?: { position: Vec3; radius: number }[];  
   /** Tangga ke lantai atas, jika ada */
   stairs?: StairsConfig;
   buildingKey: BuildingKey;
@@ -195,7 +225,103 @@ export const BUILDINGS: BuildingConfig[] = [
       bounds: { minX: -5.0, maxX: 8.5, minZ: -10.8, maxZ: 13.0 },
       spawn: [-0.72, 0, 8.2],
       exit: { position: [-0.72, 0, 10.2], radius: 1.0 },
+      seats: ENUMA_SEATS,
+      extraExits: [{ position: [6.2, 0, 13.0], radius: 1.2 }],      
+      doors: [
+        {
+          id: "lobi",
+          parts: ["Door Slab", "Door Slab Knob"],
+          hinge: [0.03, 0, 6.54],
+          center: [0.41, 0, 6.54],
+          reach: 2.0,
+          openAngle: -Math.PI / 2,
+          blocker: { minX: 0.02, maxX: 0.8, minZ: 6.45, maxZ: 6.63 },
+          wallTarget: { minX: -0.26, maxX: 4.64, minZ: 6.65, maxZ: 6.8 },
+          wallOpen: [
+            { minX: -0.26, maxX: -0.07, minZ: 6.65, maxZ: 6.8 },
+            { minX: 0.89, maxX: 4.64, minZ: 6.65, maxZ: 6.8 },
+          ],
+        },
+        {
+          id: "keluar",
+          parts: ["Door Slab.004", "Door Slab Knob.004"],
+          hinge: [-1.1, 0, 9.69],
+          center: [-0.72, 0, 9.69],
+          reach: 2.0,
+          openAngle: Math.PI / 2,
+          blocker: { minX: -1.12, maxX: -0.32, minZ: 9.55, maxZ: 9.85 },
+        },
+        {
+          id: "tengah-1",
+          parts: ["Door Slab.001", "Door Slab Knob.001"],
+          hinge: [-0.18, 0, 0.99],
+          center: [-0.18, 0, 0.61],
+          reach: 2.0,
+          openAngle: Math.PI / 2,
+          blocker: { minX: -0.21, maxX: -0.16, minZ: 0.23, maxZ: 0.99 },
+        },
+        {
+          id: "tengah-2",
+          parts: ["Door Slab.002", "Door Slab Knob.002"],
+          hinge: [-0.18, 0, -0.19],
+          center: [-0.18, 0, -0.57],
+          reach: 2.0,
+          openAngle: Math.PI / 2,
+          blocker: { minX: -0.21, maxX: -0.16, minZ: -0.95, maxZ: -0.19 },
+        },
+        {
+          id: "melintang",
+          parts: ["Door Slab.003", "Door Slab Knob.003"],
+          hinge: [0.73, 0, -5.15],
+          center: [0.35, 0, -5.15],
+          reach: 2.0,
+          openAngle: Math.PI / 2,
+          blocker: { minX: -0.03, maxX: 0.73, minZ: -5.18, maxZ: -5.12 },
+        },
+        {
+          id: "sayap-kanan",
+          parts: ["Door Slab.005", "Door Slab Knob.005"],
+          hinge: [4.71, 0, 6.39],
+          center: [4.71, 0, 6.01],
+          reach: 2.0,
+          openAngle: Math.PI / 2,
+          blocker: { minX: 4.69, maxX: 4.74, minZ: 5.63, maxZ: 6.39 },
+        },
+        {
+          id: "belakang-kanan",
+          parts: ["Door Slab.006", "Door Slab Knob.006"],
+          hinge: [7.03, 0, -6.91],
+          center: [7.03, 0, -6.53],
+          reach: 2.0,
+          openAngle: Math.PI / 2,
+          blocker: { minX: 6.95, maxX: 7.1, minZ: -6.91, maxZ: -6.15 },
+          wallTarget: { minX: 6.95, maxX: 7.1, minZ: -11.07, maxZ: -5.07 },
+          wallOpen: [
+            { minX: 6.95, maxX: 7.1, minZ: -11.07, maxZ: -7.01 },
+            { minX: 6.95, maxX: 7.1, minZ: -6.05, maxZ: -5.07 },
+          ],
+        },
+        {
+          id: "belakang-1",
+          parts: ["Door Slab.007", "Door Slab Knob.007"],
+          hinge: [2.7, 0, -9.85],
+          center: [2.7, 0, -10.23],
+          reach: 2.0,
+          openAngle: -Math.PI / 2,
+          blocker: { minX: 2.62, maxX: 2.81, minZ: -10.61, maxZ: -9.85 },
+        },
+        {
+          id: "belakang-2",
+          parts: ["Door Slab.008", "Door Slab Knob.008"],
+          hinge: [2.71, 0, -9.45],
+          center: [2.71, 0, -9.07],
+          reach: 2.0,
+          openAngle: Math.PI / 2,
+          blocker: { minX: 2.62, maxX: 2.81, minZ: -9.45, maxZ: -8.69 },
+        },
+      ],
       obstacles: [
+        ...ENUMA_FURNITURE_BOXES,        
         // Dinding luar (barat, utara, timur, teras depan)
         { minX: -5.36, maxX: -5.21, minZ: -11.23, maxZ: 13.64 },
         { minX: -5.21, maxX: 8.94, minZ: -11.23, maxZ: -11.07 },
@@ -286,10 +412,11 @@ export const BUILDINGS: BuildingConfig[] = [
   },
 ];
 
-/** Semua gedung di eksterior yang tidak bisa ditembus */
-export const CITY_OBSTACLES: Box[] = BUILDINGS.map((b) =>
-  boxFromFootprint(b.footprint),
-);
+/** Semua gedung dan objek di eksterior yang tidak bisa ditembus */
+export const CITY_OBSTACLES: Box[] = [
+  ...BUILDINGS.map((b) => boxFromFootprint(b.footprint)),
+  ...SOLID_PROP_BOXES,
+];
 
 export function getBuilding(
   key: string | null | undefined,

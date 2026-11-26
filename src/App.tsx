@@ -51,6 +51,7 @@ const MIN_TRANSITION_MS = 1350;
 
 const EXTERIOR_CAMERA = { position: [0, 16, 22] as Vec3, fov: 42 };
 const INTERIOR_CAMERA = { position: [0, 9, 11] as Vec3, fov: 42 };
+const LANDING_CAMERA = { position: [45, 28, 49] as Vec3, fov: 50 };
 
 function distXZ(a: Vec3, b: Vec3) {
   return Math.hypot(a[0] - b[0], a[2] - b[2]);
@@ -441,7 +442,7 @@ function AppContent() {
     // Belum masuk atau akun login belum menekan Jelajahi: tampilkan overview kota sebagai latar
     return (
       <div className="relative w-screen h-screen overflow-hidden bg-slate-100 select-none font-sans">
-        <SceneCanvas camera={EXTERIOR_CAMERA}>
+        <SceneCanvas camera={LANDING_CAMERA}>
           <OfficeScene
             socket={null}
             currentUser={{

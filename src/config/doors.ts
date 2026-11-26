@@ -56,4 +56,9 @@ export const CITY_DOORS: Partial<Record<string, DoorConfig>> = {
     ],
     openRadius: 2.5,
   },
+  "enuma-hq": {
+    groups: [],
+    openRadius: 2.5,
+  },
+
 };

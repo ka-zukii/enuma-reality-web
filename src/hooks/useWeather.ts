@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_URL } from "@/lib/config";
 
 export type WeatherKind = "sun" | "cloud" | "fog" | "rain" | "storm";
 
@@ -16,11 +17,6 @@ export interface Weather {
   /** Nama kecamatan dari BMKG (mis. "Kartasura") */
   place?: string;
 }
-
-/** Alamat backend. Samakan nama variabelnya dengan yang sudah dipakai di proyek. */
-const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined) ??
-  "http://localhost:4000";
 
 const REFRESH_MS = 15 * 60 * 1000;
 

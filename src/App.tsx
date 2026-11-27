@@ -27,6 +27,7 @@ import { OfficeScene } from "@/components/OfficeScene";
 import { VOfficeOverlay } from "@/components/hud/VOfficeOverlay";
 import { JoinWorkspaceModal } from "@/components/hud/JoinWorkspaceModal";
 import { RoomTransition } from "@/components/hud/RoomTransition";
+import { InteractHint } from "@/components/hud/InteractHint";
 import {
   BUILDINGS,
   getBuilding,
@@ -586,6 +587,9 @@ function AppContent() {
           Keluar ke Kota
         </button>
       )}
+
+      {/* Tombol interaksi (Duduk, Buka Pintu, dst.) di tengah bawah layar */}
+      <InteractHint />
 
       {/* Popup konfirmasi masuk gedung (hanya di kota) */}
       {!urlBuildingKey && promptBuilding && (

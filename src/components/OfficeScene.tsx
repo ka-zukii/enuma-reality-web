@@ -6,8 +6,9 @@ import {
   useState,
 } from "react";
 import { playerPos } from "@/lib/playerPosition";
+import { setInteractHint } from "@/lib/interactHint";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Html, OrbitControls } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import { type Socket } from "socket.io-client";
 import * as THREE from "three";
 import { Avatar3D } from "@/components/Avatar3D";
@@ -21,13 +22,18 @@ import { type PlayerTickData } from "@/hooks/useOfficeSocket";
 import {
   BUILDINGS,
   CITY_OBSTACLES,
-  PLAYER_RADIUS,
-  type Box,
   type BuildingInfo,
   type InteriorConfig,
-  type StairsConfig,
   type Vec3,
 } from "@/config/buildings";
+import {
+  floorOfElevation,
+  gateFloorAt,
+  inStairZones,
+  isMoveBlocked,
+  stairHeight,
+  type MoveContext,
+} from "@/lib/stairs";
 import type { CameraMode } from "@/config/camera";
 import {
   TRAM,
@@ -82,6 +88,9 @@ interface OfficeSceneProps {
 
 const MOVE_SPEED = 6.0;
 const EMIT_INTERVAL = 0.05; // 20Hz
+/** Jarak minimum kamera mode follow (ikuti karakter). Di bawah ini kamera masuk ke First Person. */
+const FOLLOW_MIN_DIST = 1.6;
+
 const POS_REPORT_INTERVAL = 0.15;
 /** Batas atas delta waktu. Saat frame turun, karakter tidak melompat jauh sekaligus. */
 const MAX_DT = 1 / 30;
@@ -98,57 +107,6 @@ function clamp(value: number, min: number, max: number) {
 
 function distXZ(a: Vec3, b: Vec3) {
   return Math.hypot(a[0] - b[0], a[2] - b[2]);
-}
-
-function inBox(x: number, z: number, b: Box): boolean {
-  return x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ;
-}
-
-/**
- * Tinggi lantai tangga di titik (x, z): proyeksi ke segmen `path` yang paling dekat,
- * lalu dibagi panjang total path supaya naik sebanding dengan jarak.
- */
-function stairHeight(stairs: StairsConfig, x: number, z: number): number {
-  const p = stairs.path;
-  let total = 0;
-  const cum: number[] = [0];
-  for (let i = 1; i < p.length; i++) {
-    total += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
-    cum.push(total);
-  }
-  let bestDist = Infinity;
-  let bestProgress = 0;
-  for (let i = 1; i < p.length; i++) {
-    const [ax, az] = p[i - 1];
-    const [bx, bz] = p[i];
-    const dx = bx - ax;
-    const dz = bz - az;
-    const len2 = dx * dx + dz * dz || 1;
-    const u = clamp(((x - ax) * dx + (z - az) * dz) / len2, 0, 1);
-    const px = ax + dx * u;
-    const pz = az + dz * u;
-    const d = Math.hypot(x - px, z - pz);
-    if (d < bestDist) {
-      bestDist = d;
-      bestProgress = cum[i - 1] + Math.hypot(dx, dz) * u;
-    }
-  }
-  return total > 0 ? (bestProgress / total) * stairs.height : 0;
-}
-
-/** Titik (x, z) dianggap menabrak jika berada di dalam kotak yang sudah diperbesar radius avatar */
-function isBlocked(x: number, z: number, boxes: Box[]): boolean {
-  for (const b of boxes) {
-    if (
-      x > b.minX - PLAYER_RADIUS &&
-      x < b.maxX + PLAYER_RADIUS &&
-      z > b.minZ - PLAYER_RADIUS &&
-      z < b.maxZ + PLAYER_RADIUS
-    ) {
-      return true;
-    }
-  }
-  return false;
 }
 
 function detectCityZone(x: number, z: number): string {
@@ -227,7 +185,8 @@ export function OfficeScene({
     }
 
     const wallMargin = 0.3;
-    const allowed = hit ? Math.max(0.5, hit.distance - wallMargin) : maxRange;
+    const minWallDist = cameraMode === "follow" ? FOLLOW_MIN_DIST : 0.5;
+    const allowed = hit ? Math.max(minWallDist, hit.distance - wallMargin) : maxRange;
     controls.maxDistance = Math.min(maxRange, allowed);
 
     // Jarak tujuan: jarak yang diinginkan, tapi tidak lebih jauh dari tembok
@@ -299,9 +258,8 @@ export function OfficeScene({
   const sittingSeatRef = useRef<SeatConfig | null>(null);
   const standPosRef = useRef<Vec3>([spawn[0], spawn[1], spawn[2]]);
   /** Petunjuk naik/turun trem & duduk di atas kepala pemain (diubah langsung, tanpa re-render) */
-  const tramHintGroupRef = useRef<THREE.Group>(null);
-  const tramHintTextRef = useRef<HTMLDivElement>(null);
-  const lastHintRef = useRef<string | null>(null);
+  // Hint tombol interaksi dikirim ke overlay di luar Canvas (lihat InteractHint)
+  useEffect(() => () => setInteractHint(null), []);
 
   const controlsRef = useRef<any>(null);
   const interiorGroupRef = useRef<THREE.Group>(null);
@@ -452,7 +410,7 @@ export function OfficeScene({
   // Smooth & responsif zoom dengan scroll wheel / trackpad (mengurangi jumlah guliran)
   useEffect(() => {
     const dom = gl.domElement;
-    const minDist = 0.3;
+    const minDist = cameraMode === "follow" ? FOLLOW_MIN_DIST : 0.3;
     const maxDist = isInterior ? 14 : spectator ? 90 : 48;
 
     const onWheel = (e: WheelEvent) => {
@@ -570,13 +528,24 @@ export function OfficeScene({
       const stepX = moveDir.x * MOVE_SPEED * delta;
       const stepZ = moveDir.z * MOVE_SPEED * delta;
 
+      const stairs = interiorRef.current?.config.stairs;
+      const moveCtx: MoveContext = {
+        stairs,
+        wasOnStairs: onStairsRef.current,
+        floor: stairs ? floorOfElevation(stairs, elevationRef.current) : 0,
+        fromX: px,
+        fromZ: pz,
+        obstacles,
+        upperObstacles: interiorRef.current?.config.upperObstacles,
+      };
+
       // Cek sumbu X dulu, jika menabrak batalkan X saja (tetap bisa bergerak di Z)
       let nextX = clamp(px + stepX, bounds.minX, bounds.maxX);
-      if (isBlocked(nextX, pz, obstacles)) nextX = px;
+      if (isMoveBlocked(moveCtx, nextX, pz)) nextX = px;
 
       // Lalu sumbu Z, dengan X yang sudah diputuskan
       let nextZ = clamp(pz + stepZ, bounds.minZ, bounds.maxZ);
-      if (isBlocked(nextX, nextZ, obstacles)) nextZ = pz;
+      if (isMoveBlocked(moveCtx, nextX, nextZ)) nextZ = pz;
 
       const didMove = nextX !== px || nextZ !== pz;
       const nextRot = Math.atan2(moveDir.x, moveDir.z);
@@ -587,16 +556,16 @@ export function OfficeScene({
         if (zone !== current.zone) onZoneChange(zone);
       }
 
-      // Ketinggian: di atas tangga naik sesuai posisi X, di luar tangga ikut lantai terakhir
-      const stairs = interiorRef.current?.config.stairs;
-      const onStairs = !!stairs && inBox(nextX, nextZ, stairs.box);
+      // Ketinggian: di atas tangga naik sesuai posisi, di luar tangga ikut lantai terakhir
       let nextY: number;
+      const onStairs = !!stairs && inStairZones(stairs, nextX, nextZ);
       if (stairs && onStairs) {
         nextY = stairHeight(stairs, nextX, nextZ);
       } else {
-        // Baru keluar dari tangga: tentukan lantai dari tinggi terakhir di tangga
+        // Baru keluar dari tangga: lantai ditentukan oleh gerbang tempat keluar
         if (stairs && onStairsRef.current) {
-          elevationRef.current = py >= stairs.height / 2 ? stairs.height : 0;
+          const g = gateFloorAt(stairs, nextX, nextZ) ?? floorOfElevation(stairs, py);
+          elevationRef.current = g === 1 ? stairs.height : 0;
         }
         nextY = isInterior ? elevationRef.current : platformY(nextX, nextZ);
       }
@@ -620,30 +589,43 @@ export function OfficeScene({
       localStateRef.current = { ...current, animation: "idle" };
     }
 
+    // Mode orang pertama: badan karakter ikut menghadap arah pandang kamera.
+    // Drag mouse untuk menoleh, dan karakter ikut berputar (strafe A/D tetap menghadap kamera).
+    if (
+      cameraMode === "first" &&
+      controlsRef.current &&
+      !sittingSeatRef.current &&
+      !ride?.riding
+    ) {
+      const ctrl = controlsRef.current;
+      // Arah pandang = dari posisi kamera ke target, diproyeksikan ke bidang XZ.
+      // Konvensi yaw sama dengan moveDir: x = sin(yaw), z = cos(yaw).
+      const lookYaw = Math.atan2(
+        ctrl.target.x - camera.position.x,
+        ctrl.target.z - camera.position.z,
+      );
+      localStateRef.current = { ...localStateRef.current, rotationY: lookYaw };
+    }
+
     const cur = localStateRef.current;
     playerPos.x = cur.position[0];
     playerPos.z = cur.position[2];
 
-    // Petunjuk di atas kepala: naik saat trem berhenti dekat pintu, turun saat di dalam
-    const hintGroup = tramHintGroupRef.current;
-    if (hintGroup) {
+    // Petunjuk tombol interaksi: dikirim ke overlay layar (bukan di atas karakter)
+    {
       let hint: string | null = null;
-      // Posisi hint: default di atas karakter, khusus pintu di atas pintu
-      let hintPos: Vec3 = [cur.position[0], cur.position[1] + 2.5, cur.position[2]];      
       if (!isInterior && !spectator) {
         if (ride?.riding) {
-          if (isTramStopped()) hint = "Tekan E untuk turun";
+          if (isTramStopped()) hint = "Turun";
         } else if (isNearTramDoor(cur.position[0], cur.position[2])) {
-          hint = isTramStopped()
-            ? "Tekan E untuk naik"
-            : "Tunggu trem berhenti untuk naik";
+          hint = isTramStopped() ? "Naik Trem" : "Tunggu trem berhenti";
         } else if (sittingSeatRef.current) {
-          hint = "Tekan E untuk berdiri";
+          hint = "Berdiri";
         } else if (findNearestSeat(cur.position[0], cur.position[2], activeSeats)) {
-          hint = "Tekan E untuk duduk";
+          hint = "Duduk";
         }
       }
-      // Di dalam gedung: label muncul di atas pintu terdekat dalam jarak tekan
+      // Di dalam gedung: petunjuk untuk pintu terdekat dalam jarak tekan
       if (isInterior) {
         const doorList = interiorRef.current?.config.doors ?? [];
         let best: (typeof doorList)[number] | null = null;
@@ -656,23 +638,12 @@ export function OfficeScene({
           }
         }
         if (best) {
-          hint = openDoorsRef.current[best.id]
-            ? "Tekan E untuk tutup pintu"
-            : "Tekan E untuk buka pintu";
-          hintPos = [best.center[0], 2.2, best.center[2]];
-        }
-      }      
-      hintGroup.visible = hint !== null;
-      if (tramHintTextRef.current) {
-        tramHintTextRef.current.style.display = hint ? "block" : "none";
-      }
-      if (hint) {
-        hintGroup.position.set(hintPos[0], hintPos[1], hintPos[2]);
-        if (hint !== lastHintRef.current && tramHintTextRef.current) {
-          tramHintTextRef.current.textContent = hint;
-          lastHintRef.current = hint;
+          hint = openDoorsRef.current[best.id] ? "Tutup Pintu" : "Buka Pintu";
         }
       }
+      setInteractHint(
+        hint ? { label: hint, key: !hint.startsWith("Tunggu") } : null,
+      );
     }
 
     // Pintu keluar interior: begitu pemain sampai di salah satu pintu keluar, kembali ke kota
@@ -703,6 +674,11 @@ export function OfficeScene({
         offset.y = 0;
         if (offset.lengthSq() < 1e-6) offset.set(0, 0, 1);
         offset.normalize();
+
+        if (cameraMode === "follow" && camera.position.distanceTo(controls.target) < FOLLOW_MIN_DIST) {
+          desiredDistRef.current = FOLLOW_MIN_DIST;
+          prefDistRef.current = FOLLOW_MIN_DIST;
+        }
 
         if (cameraMode === "first") {
           // Kamera menempel di ketinggian mata avatar, arah pandang mengikuti arah kamera sebelumnya
@@ -742,7 +718,7 @@ export function OfficeScene({
       const dist = camera.position.distanceTo(controls.target);
 
       // Jika di-zoom sangat dekat (<= 1.25m), aktifkan First Person
-      const enterFP = dist <= 1.25;
+      const enterFP = cameraMode !== "follow" && dist <= 1.25;
       if (enterFP !== isFirstPerson) {
         setIsFirstPerson(enterFP);
       }
@@ -866,7 +842,13 @@ export function OfficeScene({
         enableDamping
         dampingFactor={0.07}
         maxPolarAngle={Math.PI * 0.92}
-        minDistance={cameraMode === "first" ? 0.6 : 0.3}
+        minDistance={
+          cameraMode === "first"
+            ? 0.6
+            : cameraMode === "follow"
+              ? FOLLOW_MIN_DIST
+              : 0.3
+        }
         maxDistance={cameraMode === "first" ? 0.6 : isInterior ? 14 : spectator ? 90 : 48}
         enableZoom={cameraMode !== "first"}
         zoomSpeed={1.8}
@@ -874,27 +856,6 @@ export function OfficeScene({
       />
 
       {environment}
-
-      {!spectator && (
-        <group ref={tramHintGroupRef} visible={false}>
-          <Html center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-            <div
-              ref={tramHintTextRef}
-              style={{
-                display: "none",
-                background: "rgba(15, 23, 42, 0.85)",
-                color: "#ffffff",
-                padding: "6px 12px",
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-              }}
-            />
-          </Html>
-        </group>
-      )}
 
       {!spectator && (
         <Avatar3D

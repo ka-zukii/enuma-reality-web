@@ -46,7 +46,6 @@ const LEAVE_MARGIN = 1.5;
 // Setelah pindah ruangan selesai, popup masuk gedung ditahan sebentar agar scene sempat stabil
 const PROMPT_SETTLE_MS = 1500;
 // Durasi minimum overlay transisi ruangan tampil agar pintu sempat menutup sempurna
-// dan scene tujuan sempat termuat di balik layar sebelum pintu terbuka lagi
 const MIN_TRANSITION_MS = 1350;
 
 const EXTERIOR_CAMERA = { position: [0, 16, 22] as Vec3, fov: 42 };

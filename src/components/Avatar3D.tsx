@@ -36,7 +36,10 @@ export function Avatar3D({
   const animRef = useRef<RigAnimation>("idle");
 
   const localAvatarId = useLocalAvatarId();
-  const effectiveAvatarId = isLocal ? (localAvatarId ?? avatarId) : avatarId;
+  // Avatar dari akun (sama dengan yang dilihat pemain lain) diutamakan.
+  // localStorage hanya cadangan untuk tamu tanpa avatar, agar sisa akun lain di browser
+  // yang sama tidak menimpa avatar akun yang sedang login.
+  const effectiveAvatarId = isLocal ? (avatarId ?? localAvatarId) : avatarId;
 
   // Preset tetap dipakai untuk memilih karakter GLB (konsisten per user)
   const preset = useMemo(

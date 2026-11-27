@@ -5,16 +5,23 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 
+export type RigGender = "male" | "female";
+
 export interface CharacterOption {
   id: string;
   label: string;
   url: string;
+  /** Jenis jalan yang dipakai model ini. Menentukan clip mana yang dipilih dari file GLB */
+  gender: RigGender;
 }
 
 export const CHARACTER_OPTIONS: CharacterOption[] = [
-  { id: "char2", label: "Character 2", url: "/models/character2-walking.glb" },
-  { id: "char3", label: "Character 3", url: "/models/character3-walking.glb" },
-  { id: "char5", label: "Character 5", url: "/models/character5-walking.glb" },
+  { id: "char1", label: "Character 1", url: "/models/character1-walking.glb", gender: "male" },
+  { id: "char2", label: "Character 2", url: "/models/character2-walking.glb", gender: "female" },
+  { id: "char3", label: "Character 3", url: "/models/character3-walking.glb", gender: "male" },
+  { id: "char4", label: "Character 4", url: "/models/character4-walking.glb", gender: "female" },
+  { id: "char5", label: "Character 5", url: "/models/character5-walking.glb", gender: "male" },
+  { id: "char6", label: "Character 6", url: "/models/character6-walking.glb", gender: "female" },
 ];
 
 // Tetap diekspor sebagai default agar import lama tidak error
@@ -28,12 +35,12 @@ CHARACTER_OPTIONS.forEach((char) => useGLTF.preload(char.url));
  * Ubah sesuai selera: karakter mana untuk preset mana.
  */
 const AVATAR_MODEL: Record<string, string> = {
-  male_1: CHARACTER_OPTIONS[1].url,
-  male_2: CHARACTER_OPTIONS[2].url,
+  male_1: CHARACTER_OPTIONS[0].url,
+  male_2: CHARACTER_OPTIONS[4].url,
   male_3: CHARACTER_OPTIONS[2].url,
-  female_1: CHARACTER_OPTIONS[0].url,
-  female_2: CHARACTER_OPTIONS[0].url,
-  female_3: CHARACTER_OPTIONS[0].url,
+  female_1: CHARACTER_OPTIONS[3].url,
+  female_2: CHARACTER_OPTIONS[1].url,
+  female_3: CHARACTER_OPTIONS[5].url,
 };
 
 export function modelUrlForAvatar(avatarId?: string | null): string {
@@ -41,6 +48,34 @@ export function modelUrlForAvatar(avatarId?: string | null): string {
 }
 
 export type RigAnimation = "idle" | "walk" | "sit";
+
+/**
+ * Beberapa GLB membawa lebih dari satu clip walk dengan nama sama-sama "mixamo.com", "mixamo.com.001", dst.
+ * Dua jenis jalan yang ada di file-filemu dibedakan lewat durasinya:
+ *   - 1.067 dtk (32 frame) = jalan cowok
+ *   - 1.000 dtk (30 frame) = jalan cewek (ayunan pinggul lebih besar)
+ */
+const WALK_DURATION: Record<RigGender, number> = { male: 1.067, female: 1.0 };
+
+function pickWalkClip(
+  animations: THREE.AnimationClip[],
+  gender?: RigGender,
+): THREE.AnimationClip | undefined {
+  if (animations.length === 0) return undefined;
+  if (!gender || animations.length === 1) {
+    return animations.find((a) => /walk/i.test(a.name)) ?? animations[0];
+  }
+  let best = animations[0];
+  let bestDiff = Infinity;
+  for (const a of animations) {
+    const diff = Math.abs(a.duration - WALK_DURATION[gender]);
+    if (diff < bestDiff - 1e-3) {
+      best = a;
+      bestDiff = diff;
+    }
+  }
+  return best;
+}
 
 export interface WalkTuning {
   /** Kecepatan animasi. 7 = kecepatan asli dari Blender. */
@@ -80,6 +115,8 @@ export interface RiggedCharacterProps {
   flip?: boolean;
   showSkeleton?: boolean;
   targetHeight?: number;
+  /** Jenis jalan. Kosong = diambil dari CHARACTER_OPTIONS berdasarkan modelUrl */
+  gender?: RigGender;
 }
 
 /** Cari tulang berdasarkan akhiran nama, misalnya "LeftArm" */
@@ -151,8 +188,11 @@ export function RiggedCharacter({
   flip = false,
   showSkeleton = false,
   targetHeight = TARGET_HEIGHT,
+  gender,
 }: RiggedCharacterProps) {
   const gltf = useGLTF(modelUrl);
+  const walkGender: RigGender | undefined =
+    gender ?? CHARACTER_OPTIONS.find((c) => c.url === modelUrl)?.gender;
 
   const built = useMemo(() => {
     const root = clone(gltf.scene) as THREE.Group;
@@ -197,7 +237,14 @@ export function RiggedCharacter({
     }
 
     // ---- Clip jalan: buang gerak maju akar (Hips) ----
-    const src = gltf.animations[0];
+    const src = pickWalkClip(gltf.animations, walkGender);
+    if (import.meta.env.DEV) {
+      console.info(
+        `[RiggedCharacter] ${modelUrl} (${walkGender ?? "?"}) -> clip "${src?.name}" ${src?.duration.toFixed(3)}s`,
+        "| semua clip:",
+        gltf.animations.map((a) => `${a.name} ${a.duration.toFixed(3)}s`),
+      );
+    }
     const tracks = src
       ? src.tracks.filter(
           (t) => !(t.name.toLowerCase().includes("hips") && t.name.endsWith(".position")),
@@ -338,7 +385,7 @@ export function RiggedCharacter({
     const sitDrop = Math.max(0, hipY - SIT_HIP_Y);
 
     return { scene: root, mixer, actions, fit, sitDrop };
-  }, [gltf, targetHeight]);
+  }, [gltf, targetHeight, walkGender, modelUrl]);
 
   const { scene, mixer, actions, fit, sitDrop } = built;
 

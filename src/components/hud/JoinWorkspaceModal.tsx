@@ -36,7 +36,7 @@ export function JoinWorkspaceModal({
   const fetchWorkspaces = async () => {
     setLoading(true);
     try {
-      const res = await authFetch("/api/workspaces");
+      const res = await authFetch("/workspaces");
       if (res.ok) {
         const data = await res.json();
         setWorkspaces(data);

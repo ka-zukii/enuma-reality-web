@@ -204,8 +204,8 @@ export function useOfficeSocket(
       setRemotePlayers([]);
 
       const [globalRes, dmRes] = await Promise.all([
-        authFetch(`/api/rooms/${exteriorRoom.id}/messages`),
-        authFetch(`/api/workspaces/${targetWorkspace.id}/dms`),
+        authFetch(`/rooms/${exteriorRoom.id}/messages`),
+        authFetch(`/workspaces/${targetWorkspace.id}/dms`),
       ]);
       const globalHistory: ApiChatMessage[] = globalRes.ok
         ? await globalRes.json()
@@ -549,7 +549,7 @@ export function useOfficeSocket(
 
       try {
         setError(null);
-        const res = await authFetch("/api/servers/quick-join", {
+        const res = await authFetch("/servers/quick-join", {
           method: "POST",
         });
         if (epoch !== sessionEpochRef.current) return;
@@ -638,7 +638,7 @@ export function useOfficeSocket(
       if (!ws) throw new Error("Belum terhubung");
 
       const res = await authFetch(
-        `/api/workspaces/${ws.id}/interiors/${buildingKey}`,
+        `/workspaces/${ws.id}/interiors/${buildingKey}`,
         { method: "POST" },
       );
       if (!res.ok) throw new Error(`Gagal masuk gedung (${res.status})`);
@@ -761,7 +761,7 @@ export function useOfficeSocket(
     async (inviteCode: string) => {
       if (!userIdRef.current) return { ok: false, error: "Unauthorized" };
 
-      const res = await authFetch("/api/workspaces/join", {
+      const res = await authFetch("/workspaces/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ inviteCode }),

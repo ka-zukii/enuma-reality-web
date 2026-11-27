@@ -80,7 +80,7 @@ export function useWeather() {
       controller.abort();
       controller = new AbortController();
 
-      fetch(`${API_URL}/api/weather`, { signal: controller.signal })
+      fetch(`${API_URL}/weather`, { signal: controller.signal })
         .then((res) =>
           res.ok ? res.json() : Promise.reject(new Error("gagal")),
         )

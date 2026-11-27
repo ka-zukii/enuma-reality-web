@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/socket.io",
+      "destination": "http://de4.bot-hosting.cloud:27208/socket.io/"
+    },
+    {
       "source": "/socket.io/:path*",
       "destination": "http://de4.bot-hosting.cloud:27208/socket.io/:path*"
     },

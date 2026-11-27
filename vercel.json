@@ -2,19 +2,19 @@
   "rewrites": [
     {
       "source": "/realtime",
-      "destination": "https://enumareality.apps.bot-hosting.cloud/health/realtime/"
+      "destination": "https://enumareality.apps.bot-hosting.cloud/realtime/"
     },
     {
       "source": "/realtime/(.*)",
-      "destination": "https://enumareality.apps.bot-hosting.cloud/health/realtime/$1"
+      "destination": "https://enumareality.apps.bot-hosting.cloud/realtime/$1"
     },
     {
       "source": "/health",
-      "destination": "https://enumareality.apps.bot-hosting.cloud/health/health"
+      "destination": "https://enumareality.apps.bot-hosting.cloud/health"
     },
     {
       "source": "/api/:path*",
-      "destination": "https://enumareality.apps.bot-hosting.cloud/health/api/:path*"
+      "destination": "https://enumareality.apps.bot-hosting.cloud/api/:path*"
     }
   ]
 }

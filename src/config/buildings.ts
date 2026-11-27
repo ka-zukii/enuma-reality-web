@@ -45,15 +45,28 @@ export interface InteriorBounds {
   maxZ: number;
 }
 
+/** Titik di path tangga: [x, z] atau [x, z, tinggi] */
+export type StairPathPoint = [number, number] | [number, number, number];
+
 /**
- * Tangga yang bisa dinaiki. `path` adalah garis tengah tangga dalam koordinat
- * ruangan [x, z], dari ujung bawah (tinggi 0) sampai ujung atas (tinggi `height`).
- * Tinggi di dalam `box` dihitung dari posisi terdekat di sepanjang `path`.
+ * Tangga yang bisa dinaiki.
+ *
+ * `path` adalah garis tengah tangga dalam koordinat ruangan [x, z, tinggi?].
+ * - Jika setiap titik punya tinggi, tinggi lantai diinterpolasi antar titik
+ *   (bordes datar = dua titik dengan tinggi sama).
+ * - Jika tidak, tinggi naik rata dari 0 sampai `height` sepanjang path.
+ *
+ * `zones` (opsional) adalah footprint tangga yang sebenarnya (gabungan kotak, mis. tangga bentuk U/L).
+ * `gates` (opsional) adalah satu-satunya tempat tangga boleh dimasuki dan ditinggalkan.
+ * Jika `gates` diisi, sisi tangga dan kolong tangga tidak bisa ditembus.
  */
 export interface StairsConfig {
+  /** Kotak pembatas seluruh tangga. Dipakai NPC untuk menghindar, dan sebagai footprint bila `zones` kosong */
   box: Box;
-  path: [number, number][];
+  path: StairPathPoint[];
   height: number;
+  zones?: Box[];
+  gates?: { floor: 0 | 1; box: Box }[];
 }
 
 /** Pintu yang bisa dibuka/ditutup dengan tombol E */
@@ -94,8 +107,10 @@ export interface InteriorConfig {
   bounds: InteriorBounds;
   spawn: Vec3;
   exit: { position: Vec3; radius: number };
-  /** Benda di dalam ruangan yang tidak bisa ditembus (meja, rak, dll) */
+  /** Benda di dalam ruangan yang tidak bisa ditembus (meja, rak, dll). Untuk lantai bawah */
   obstacles: Box[];
+  /** Penghalang khusus lantai atas. Kosong = lantai atas memakai `obstacles` yang sama */
+  upperObstacles?: Box[];
   /** Titik duduk di dalam gedung (opsional) */
   seats?: { id: string; x: number; y: number; z: number; rotationY: number }[];  
   /** Pintu interaktif (opsional) */
@@ -381,7 +396,6 @@ export const BUILDINGS: BuildingConfig[] = [
         { minX: -7.34, maxX: -6.52, minZ: -11.0, maxZ: -10.85 },
         { minX: -7.34, maxX: -3.49, minZ: -9.07, maxZ: -8.92 },
         { minX: -7.34, maxX: -3.34, minZ: -5.56, maxZ: -5.41 },
-        { minX: -7.34, maxX: 4.86, minZ: -5.43, maxZ: -5.28 },
         { minX: -5.56, maxX: -5.4, minZ: -6.78, maxZ: -5.56 },
         { minX: -5.55, maxX: -5.4, minZ: -12.37, maxZ: -11.07 },
         { minX: -5.53, maxX: -5.46, minZ: -7.0, maxZ: -6.85 },
@@ -394,19 +408,85 @@ export const BUILDINGS: BuildingConfig[] = [
         { minX: 1.06, maxX: 7.51, minZ: 12.33, maxZ: 12.48 },
         { minX: 4.21, maxX: 4.36, minZ: -12.37, maxZ: -7.32 },
         { minX: 4.21, maxX: 7.36, minZ: -7.47, maxZ: -7.32 },
-        { minX: 6.96, maxX: 7.36, minZ: -5.43, maxZ: -5.28 },
         { minX: 7.36, maxX: 7.51, minZ: -12.52, maxZ: 12.48 },
+        // Coffee bar (mesh CoffeeBar)
+        { minX: 1.28, maxX: 4.2, minZ: -8.79, maxZ: -7.34 },
+        // Meja lantai bawah (mesh Meja1 s.d. Meja14)
+        { minX: 4.83, maxX: 5.63, minZ: 11.39, maxZ: 12.19 },
+        { minX: 2.18, maxX: 2.98, minZ: 11.39, maxZ: 12.19 },
+        { minX: -3.22, maxX: -2.42, minZ: 11.39, maxZ: 12.19 },
+        { minX: -5.88, maxX: -5.08, minZ: 11.39, maxZ: 12.19 },
+        { minX: 4.52, maxX: 5.32, minZ: 7.89, maxZ: 8.69 },
+        { minX: 1.73, maxX: 2.53, minZ: 6.64, maxZ: 7.44 },
+        { minX: -5.88, maxX: -5.08, minZ: 8.22, maxZ: 9.02 },
+        { minX: -3.17, maxX: -2.37, minZ: 6.64, maxZ: 7.44 },
+        { minX: 3.96, maxX: 4.76, minZ: 3.43, maxZ: 4.23 },
+        { minX: -3.66, maxX: -2.86, minZ: 3.01, maxZ: 3.81 },
+        { minX: -6.55, maxX: -5.75, minZ: 4.22, maxZ: 5.02 },
+        { minX: 5.21, maxX: 6.01, minZ: -1.96, maxZ: -1.16 },
+        { minX: 1.99, maxX: 2.79, minZ: -0.23, maxZ: 0.57 },
+        { minX: -5.4, maxX: -4.6, minZ: -0.13, maxZ: 0.67 },
       ],
-      // Tangga di sisi barat: lurus ke +Z dulu, lalu belok kiri ke +X menuju lantai dua.
-      // Koordinat ini perkiraan, sesuaikan jika posisi naik/belok belum pas.
+      // Penghalang lantai dua. Dinding pemisah di z = -5.4 (mesh Wall.017) hanya ada di lantai ini,
+      // dengan celah pintu di x 4.91 s.d. 6.91.
+      upperObstacles: [
+        { minX: 7.36, maxX: 7.51, minZ: -12.52, maxZ: 12.48 },
+        { minX: -7.49, maxX: 7.51, minZ: -12.52, maxZ: -12.37 },
+        { minX: -7.49, maxX: -7.34, minZ: -12.52, maxZ: 12.48 },
+        // Pagar balkon depan (Railing.002, .003, .005)
+        { minX: -7.34, maxX: 7.36, minZ: 12.35, maxZ: 12.41 },
+        // Dinding pemisah ruang belakang (Wall.017), celah pintu 4.91 s.d. 6.91
+        { minX: -7.34, maxX: 4.91, minZ: -5.43, maxZ: -5.28 },
+        { minX: 6.91, maxX: 7.36, minZ: -5.43, maxZ: -5.28 },
+        // Pagar lubang tangga (Railing.004 dan Railing.007)
+        { minX: -6.06, maxX: -3.61, minZ: -4.24, maxZ: -4.2 },
+        { minX: -3.62, maxX: -3.57, minZ: -5.21, maxZ: -4.21 },
+        // Meja lantai atas (mesh Meja6.001 s.d. Meja6.018)
+        { minX: 1.75, maxX: 2.55, minZ: 8.3, maxZ: 9.1 },
+        { minX: -3.17, maxX: -2.08, minZ: 7.38, maxZ: 8.47 },
+        { minX: -5.75, maxX: -4.95, minZ: -7.81, maxZ: -7.01 },
+        { minX: 0.07, maxX: 0.87, minZ: 5.2, maxZ: 6 },
+        { minX: -2.77, maxX: -1.97, minZ: -0.17, maxZ: 0.63 },
+        { minX: 3.25, maxX: 4.05, minZ: -1.08, maxZ: -0.28 },
+        { minX: -4.08, maxX: -3.28, minZ: 3.58, maxZ: 4.38 },
+        { minX: 1.21, maxX: 2.01, minZ: 1.2, maxZ: 2 },
+        { minX: 3.5, maxX: 4.63, minZ: 4.55, maxZ: 5.68 },
+        { minX: -5.81, maxX: -4.83, minZ: -11.13, maxZ: -10.15 },
+        { minX: -3.77, maxX: -2.97, minZ: 11.09, maxZ: 11.89 },
+        { minX: -0.37, maxX: 0.43, minZ: 11.09, maxZ: 11.89 },
+        { minX: 3.22, maxX: 4.02, minZ: 11.09, maxZ: 11.89 },
+        { minX: -1.8, maxX: -0.69, minZ: -11.18, maxZ: -10.07 },
+        { minX: -1.67, maxX: -0.81, minZ: -7.24, maxZ: -6.37 },
+        { minX: 1.94, maxX: 3.06, minZ: -7.34, maxZ: -6.23 },
+        { minX: 1.94, maxX: 3.06, minZ: -10.57, maxZ: -9.46 },
+        { minX: 5.41, maxX: 6.53, minZ: -10.57, maxZ: -9.46 },
+      ],
+      // Tangga bentuk U (diukur dari mesh Stairs di cafe.glb):
+      //  1) Lari pertama menuju barat (-X) dari x = -4.05 sampai bordes di x = -5.78, naik 0 -> 2 m
+      //  2) Bordes datar (tinggi 2 m) di x -7.32 s.d. -5.78
+      //  3) Lari kedua menuju utara (+Z) dari z = -4.33 sampai z = -2.37, naik 2 -> 4 m
+      // Tangga hanya bisa dimasuki dari gerbang (pangkal di timur, ujung atas di utara).
       stairs: {
         box: { minX: -7.32, maxX: -4.05, minZ: -5.44, maxZ: -2.37 },
+        zones: [
+          { minX: -5.78, maxX: -4.05, minZ: -5.44, maxZ: -4.33 }, // lari pertama
+          { minX: -7.32, maxX: -5.78, minZ: -5.44, maxZ: -4.33 }, // bordes
+          { minX: -7.32, maxX: -6.05, minZ: -4.33, maxZ: -2.37 }, // lari kedua
+        ],
         path: [
-          [-6.5, -4.8],
-          [-6.5, -2.6],
-          [-4.3, -2.6],
+          [-4.05, -4.885, 0],
+          [-5.78, -4.885, 1.9],
+          [-6.725, -4.885, 2.0],
+          [-6.725, -4.33, 2.08],
+          [-6.725, -2.37, 4.0],
         ],
         height: 4.0,
+        gates: [
+          // Pangkal tangga di lantai bawah (x -4.05 menuju timur)
+          { floor: 0, box: { minX: -4.05, maxX: -3.45, minZ: -5.44, maxZ: -4.33 } },
+          // Ujung atas tangga di lantai dua (z -2.37 menuju utara)
+          { floor: 1, box: { minX: -7.32, maxX: -6.05, minZ: -2.37, maxZ: -1.85 } },
+        ],
       },
     },
   },

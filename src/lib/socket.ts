@@ -9,6 +9,7 @@ import { getAccessToken } from "@/lib/api";
  */
 export function createSocketConnection(): Socket {
   return io(API_URL || undefined, {
+    path: "/realtime",
     auth: (cb) => {
       getAccessToken()
         .then((token) => cb({ token: token ?? "" }))

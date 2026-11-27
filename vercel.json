@@ -1,12 +1,12 @@
 {
   "rewrites": [
     {
-      "source": "/socket.io",
-      "destination": "http://de4.bot-hosting.cloud:27208/socket.io/"
+      "source": "/realtime",
+      "destination": "http://de4.bot-hosting.cloud:27208/realtime/"
     },
     {
-      "source": "/socket.io/:path*",
-      "destination": "http://de4.bot-hosting.cloud:27208/socket.io/:path*"
+      "source": "/realtime/:path*",
+      "destination": "http://de4.bot-hosting.cloud:27208/realtime/:path*"
     },
     {
       "source": "/health",
@@ -18,3 +18,4 @@
     }
   ]
 }
+    

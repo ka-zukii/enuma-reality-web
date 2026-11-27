@@ -17,7 +17,7 @@ async function doFetch(
 ): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${token}`);
-  return fetch(`${API_URL}${path}`, { ...init, headers });
+  return fetch(`${API_URL}/api${path}`, { ...init, headers });
 }
 
 /**

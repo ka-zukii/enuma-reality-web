@@ -1,12 +1,16 @@
 {
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "http://de4.bot-hosting.cloud:27208/api/:path*"
+      "source": "/socket.io/:path*",
+      "destination": "http://de4.bot-hosting.cloud:27208/socket.io/:path*"
     },
     {
       "source": "/health",
       "destination": "http://de4.bot-hosting.cloud:27208/health"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "http://de4.bot-hosting.cloud:27208/api/:path*"
     }
   ]
 }

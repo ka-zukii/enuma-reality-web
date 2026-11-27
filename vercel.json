@@ -9,6 +9,10 @@
       "destination": "http://de4.bot-hosting.cloud:27208/health"
     },
     {
+      "source": "/weather",
+      "destination": "http://de4.bot-hosting.cloud:27208/weather"
+    },
+    {
       "source": "/api/:path*",
       "destination": "http://de4.bot-hosting.cloud:27208/api/:path*"
     }

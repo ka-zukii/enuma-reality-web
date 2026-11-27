@@ -5,8 +5,8 @@
       "destination": "http://de4.bot-hosting.cloud:27208/realtime/"
     },
     {
-      "source": "/realtime/:path*",
-      "destination": "http://de4.bot-hosting.cloud:27208/realtime/:path*"
+      "source": "/realtime/(.*)",
+      "destination": "http://de4.bot-hosting.cloud:27208/realtime/$1"
     },
     {
       "source": "/health",
@@ -18,4 +18,3 @@
     }
   ]
 }
-    

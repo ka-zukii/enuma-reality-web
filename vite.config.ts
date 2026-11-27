@@ -11,7 +11,7 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0',
+    host: "0.0.0.0",
     port: 5173,
     allowedHosts: true,
     proxy: {
@@ -20,7 +20,7 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      "/socket.io": {
+      "/realtime": {
         target: "http://127.0.0.1:4000",
         ws: true,
         changeOrigin: true,
